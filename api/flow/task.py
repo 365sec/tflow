@@ -3,7 +3,7 @@ from flask_restplus import Namespace, Resource
 from flask import request
 import os
 import sys
-from scheduler import get_scheduler
+from flow_assets.scheduler import get_scheduler
 import logging
 import json
 import paramiko
@@ -21,10 +21,29 @@ class Create(Resource):
             sc = get_scheduler()
             logging.info("post create")
             cfg = json.loads(request.data)
+            # cfg={
+            #     "vlan": "sqlinject.pcapng",  # 可设置网卡ens192，离线pcap包路径
+            #       "pacp": "/pacp_path",
+            #     "path": "./ndpiReader",  # ndpi程序路径
+            #     "access_time": "20",  # 分析时长
+            #     "temp_flow": "temp_flow.json",  # 临时文件
+            #     "task_type" : "passive"
+            # }
+#            if  cfg.get("es_passive_name",None) == None:
+#                return {"success": False, "msg": "es索引名 不能为空"}
+#            if  cfg.get("es_passive_type",None) == None:
+#                return {"success": False, "msg": "es索引类型 不能为空"}
+#            if  cfg.get("path",None) == None:
+#                return {"success": False, "msg": "es IP地址 不能为空"}
+            print cfg
             if cfg.get("vlan",None) == None:
                 return {"success": False, "msg": "vlan 不能为空"}
             if cfg.get("path", None) == None:
                 return {"success": False, "msg": "path 不能为空"}
+#            if cfg.get("access_time", None) == None:
+#                return {"success": False, "msg": "access_time 不能为空"}
+#            if cfg.get("temp_flow", None) == None:
+#                return {"success": False, "msg": "temp_flow 不能为空"}
             task_type = cfg.get("task_type", None)
             if task_type  == None:
                 return {"success": False, "msg": "任务类型  不能为空"}
@@ -114,6 +133,7 @@ class Status(Resource):
             logging.info("post create")
             taskid = cfg.get("taskid",None)
             if not taskid :
+                # print '===='
                 for task in sc.tasklist:
                     if 'suricata' in task.get("cfg").get("task_type") and 'suricata' in cfg.get("task_type") and task.get("status") in [0,1]:
                         taskid = task.get("taskid")
@@ -198,4 +218,3 @@ class Delete(Resource):
                 return {"success": False, "msg": "taskid 不能为空"}
         except Exception as e:
             return {"success": False, "msg": str(e)}
-

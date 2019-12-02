@@ -4,7 +4,6 @@ import threading
 import time
 import uuid
 import copy
-from  scanner import  Scanner
 from ndpi import ndpi
 from ids import redis_es
 import logging
