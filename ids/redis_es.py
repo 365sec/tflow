@@ -10,7 +10,7 @@ import geoip2.database
 import IPy
 import pytz
 import redis
-import esload1
+import esload
 import json
 import netcard_name
 import IPdivide
@@ -374,6 +374,9 @@ class Suricata_es:
 
     def stop(self):
         try:
+            pool = redis.ConnectionPool(host='127.0.0.1', port=6379)
+            r = redis.Redis(connection_pool=pool)
+            r.flushdb()
             os.system("ps -ef|grep " + self.cfg.get("path") + " |grep -v grep|awk '{print $2}'|xargs kill -9")
             self.task["status"] = 2
             return True

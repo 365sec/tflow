@@ -14,7 +14,7 @@ from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 
 class ElasticObj:
-    def __init__(self, index_name,index_type,ip ="172.16.39.15"):
+    def __init__(self, index_name,index_type,ip ="127.0.0.1"):
         '''
 
         :param index_name: 索引名称
@@ -69,8 +69,13 @@ class ElasticObj:
         #print(res['created'])
 
     def bulk_Index_Data(self,ACTIONS):
-        success,_  = bulk(self.es, ACTIONS, index=self.index_name)
-        # print('Performed %d actions' % success)
+        print self.index_name,self.index_type
+        try:
+            bulk(self.es, ACTIONS, index=self.index_name)
+        except Exception,e:
+            print e
+
+
 
     def Delete_Index_Data(self,id):
         '''
@@ -275,11 +280,10 @@ class ElasticObj:
 
 
 
-# obj = ElasticObj("passive_flow", "passive_flow_type","172.16.39.15")
-# obj.create_index()
+
 #obj.Index_Data()
 
-# obj.IndexData()
+#obj.IndexData()
 #obj.Delete_Index_Data("AW1rW62rivY3Jk6-XlF2")
 # csvfile = 'D:/work/ElasticSearch/exportExcels/2017-08-31_info.csv'
 # obj.Index_Data_FromCSV(csvfile)

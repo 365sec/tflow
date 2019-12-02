@@ -15,9 +15,15 @@ import hashlib
 import os
 import geoip2.database
 import IPy
-
+import firms
 import netcard_name, IPdivide
 from mongoclass import Mongoclass
+
+import sys
+
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
 # from mongo_config import mongo_settings as settings
 # from pymongo import MongoClient
 #
@@ -36,7 +42,7 @@ import json
 
 class Passiveasset:
     def __init__(self, task):
-        self.category_map = {
+        self.category_map = self.category_map = {
             "25": "娱乐",
             "26": "娱乐",
             "27": "娱乐",
@@ -77,25 +83,10 @@ class Passiveasset:
         self.cfg = self.task.get("cfg")
         print "ndpi init ..."
 
-    def ipcheck(self, ip_addrr):
-        try:
-            if re.match(r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
-                        ip_addrr):
-                return True
-            else:
-                return False
-        except:
-            return False
-
     def md5(self, str):
         m = hashlib.md5()
         m.update(str.encode("utf8"))
         return m.hexdigest()
-
-    def ip_addrs_check(self,ip,ip_addrs):
-        return ip in IPy.IP(ip_addrs)
-
-
 
     def capture(self, cfg):
 
@@ -108,17 +99,22 @@ class Passiveasset:
             index_type = passive_cfg.get("es_passive").get("index_type")
             es_path = passive_cfg.get("es_passive").get("path")
             access_time = cfg.get("access_time", 20)
-            temp_flow = passive_cfg.get("temp_flow", "temp_flow.json")
-            passive_hz = str(passive_cfg.get("ndpi_hz","5"))
+            temp_flow = passive_cfg.get("temp_flow", "temp_flow.csv")
+            passive_hz = str(passive_cfg.get("ndpi_hz", "5"))
             task_type = cfg.get("task_type")
             IP_addresses = cfg.get("ipaddresses")
             ip_mode = cfg.get("ip_mode")
             geo_db = passive_cfg.get("geo_db")
+            keys_list_paths=passive_cfg.get("keys_list_paths")
+            head_key = json.loads(open(keys_list_paths,"r").read())
+            firms_lib_path  = passive_cfg.get("mac_firms")
             if "vlan" in task_type:
-                command = path + " -i " + vlan + "  -v 2  -j " + temp_flow + " -m "+passive_hz+" -s " + str(access_time) + " 2>&1 "
+                command = path + " -i " + vlan + " -C " + temp_flow + " -m " + passive_hz + " -s " + str(
+                    access_time) + " -q 2>&1 "
             else:
-                command = path + " -i " + pcap + "  -v 2  -j " + temp_flow + " -m "+passive_hz+" -s " + str(access_time) + " 2>&1 "
-                ip_mode=3
+                command = path + " -i " + pcap + " -C " + temp_flow + " -m " + passive_hz + " -s " + str(
+                    access_time) + " -q 2>&1 "
+                ip_mode = 3
             print "command: " + command
             p = Popen(command, shell=True, stdin=PIPE, stdout=PIPE)
             print "启动成功"
@@ -135,122 +131,83 @@ class Passiveasset:
         passive_hz:服务程序推送结果频率
         access_time:服务启动时间
         '''
+        obj = esload.ElasticObj(index_name, index_type, ip=es_path)
 
-        obj = esload.ElasticObj(index_name,index_type, ip=es_path)
-        #         # print "start access flow"
         if self.work_status == self.Running:
             print 'running1'
             ACTIONS = []
             count = 0
             for line in p.stdout:
                 if not line:
-                    count +=1
+                    count += 1
                     time.sleep(1)
-                if count>=60:
+                if count >= 50:
+                    count = 0
                     obj.bulk_Index_Data(ACTIONS)
                 line = line.strip()
                 # print  "-->",line
-                if '{' in line:
+                if ',' in line:
                     try:
-                        flow = json.loads(line)
+                        line = line.encode('utf-8')
+                        temp_datalist = line.split(',')
+                        if len(head_key) > len(temp_datalist):
+                            continue
+                        flow = {}
+                        for index in range(0, len(head_key)):
+                            flow[head_key[index]] = temp_datalist[index]
                         for key in flow.keys():
                             if '.' in key:
                                 flow.update({key.replace('.', '_'): flow.pop(key)})
-                        category_id = flow.get("detected_protocol_category")
+                        category_id = flow.get("protocol_category", "")
                         try:
                             category_name = self.category_map[str(category_id)].decode('utf-8')
                         except Exception, e:
                             category_name = "未知".decode('utf-8')
-                        #print category_name
-                        # utc_time = datetime.now() - timedelta(hours=8)
+
                         utc_time = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S+0800")
                         flow["timestamp"] = utc_time
                         flow["device_type"] = category_name
+                        flow["packets"] = int(flow.get("src2dst_packets", 0)) + int(flow.get("dst2src_packets", 0))
+                        flow["bytes"] = int(flow.get("src2dst_bytes", 0)) + int(flow.get("dst2src_bytes", 0))
                         flow["category"] = "软件".decode('utf-8')
                         flow["classify"] = ""
-                        md5str = str(flow.get('host_a_name')) + str(flow.get(' host_a_port')) + str(flow.get('host_b_name')) + str(flow.get('host_b_port'))
+                        self.mac_manu_set(flow, flow.get("src_mac",""),"src",firms_lib_path)
+                        self.mac_manu_set(flow, flow.get("dest_mac",""),"dest",firms_lib_path )
+                        print flow["src_manufacturer"]
+                        md5str = str(flow.get('host_a_name')) + str(flow.get(' host_a_port')) + str(
+                            flow.get('host_b_name')) + str(flow.get('host_b_port'))
                         _id = self.md5(md5str)
-                        dest_ip = str(flow.get("host_b_name"))
-                        dest_ip_geo={}
-                        if IPdivide.is_internal_ip(dest_ip):
-                            intranet = "内网".decode('utf-8')
-                            country = "中国".decode('utf-8')
-                            province = ""
-                            city = ""
-                            latitude = ""
-                            longitude = ""
-                            country_code = ""
-                        else:
-                            intranet = "外网".decode('utf-8')
-                            country = ""
-                            province = ""
-                            city = ""
-                            latitude = ""
-                            longitude = ""
-                            country_code = ""
-                            try:
-                                reader = geoip2.database.Reader(geo_db)
-                                try:
-                                    response = reader.city(dest_ip)
-                                    country = response.country.names.get('zh-CN',u'')
-                                    province = response.subdivisions.most_specific.names.get('zh-CN', u'')
-                                    city = response.city.names.get('zh-CN', u'')
-                                    latitude=response.location.latitude
-                                    longitude=response.location.longitude
-                                    country_code = response.country.iso_code
-                                except Exception,e:
-                                    pass
-                                if not country :
-                                    try:
-                                        response = reader.city(dest_ip)
-                                        country = response.country.names.get('en', '')
-                                        province = response.subdivisions.most_specific.names.get('en', '')
-                                        city = response.city.names.get('en', '')
-                                        latitude = response.location.latitude
-                                        longitude = response.location.longitude
-                                        country_code = response.country.iso_code
-                                    except :
-                                        pass
-                            except Exception, e:
-                                s = sys.exc_info()
-                                print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
-                        dest_ip_geo={
-                            "intranet":intranet,
-                            "province": province,
-                            "city":city,
-                            "country": country,
-                            "longitude": longitude,
-                            "country_code": country_code,
-                            "latitude": latitude
-                        }
+                        dest_ip_geo = self.set_geo(str(flow.get("host_b_name")),geo_db)
                         flow["dest_ip_geo"] = dest_ip_geo
-                        # print flow
-                        # "_id": _id,  # _id 也可以默认生成，不赋值
                         action = {
                             "_index": obj.index_name,
                             "_type": obj.index_type,
                             "_id": _id,
                             "_source": flow
                         }
+                        #print action,'\n',ip_mode
                         try:
-                            if self.ipcheck(flow.get("host_a_name")) and self.ipcheck(flow.get("host_b_name")) and action:
+                            if IPdivide.ipcheck(flow.get("host_a_name")) and IPdivide.ipcheck(flow.get("host_b_name")) and action:
                                 if ip_mode == 2:
-                                    if self.ip_addrs_check(flow.get("host_a_name"),IP_addresses) or self.ip_addrs_check(flow.get("host_b_name"),IP_addresses):
+                                    if IPdivide.ip_graph_check(flow.get("host_a_name"),IP_addresses) or IPdivide.ip_graph_check(
+                                            flow.get("host_b_name"), IP_addresses):
                                         ACTIONS.append(action)
-                                        if len(ACTIONS) > 200:
+                                        if len(ACTIONS) > 50:
                                             self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                                             obj.bulk_Index_Data(ACTIONS)
                                             ACTIONS = []
                                 elif ip_mode == 1:
-                                    if IPdivide.is_internal_ip(flow.get("host_a_name")) or IPdivide.is_internal_ip(flow.get("host_b_name")):
+                                    if IPdivide.is_internal_ip(flow.get("host_a_name")) or IPdivide.is_internal_ip(
+                                            flow.get("host_b_name")):
                                         ACTIONS.append(action)
-                                        if len(ACTIONS) > 200:
+                                        if len(ACTIONS) > 50:
                                             self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                                             obj.bulk_Index_Data(ACTIONS)
-                                            ACTIONS=[]
+                                            ACTIONS = []
                                 else:
+                                    print len(ACTIONS)
                                     ACTIONS.append(action)
-                                    if len(ACTIONS) > 200:
+                                    if len(ACTIONS) > 50:
                                         self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                                         obj.bulk_Index_Data(ACTIONS)
                                         ACTIONS = []
@@ -265,7 +222,78 @@ class Passiveasset:
                         s = sys.exc_info()
                         print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
 
-    def mongo_data(self,ACTIONS,cfg):
+    def set_geo(self,dest_ip,geo_db):
+        if IPdivide.is_internal_ip(dest_ip):
+            intranet = "内网".decode('utf-8')
+            country = "中国".decode('utf-8')
+            province = ""
+            city = ""
+            latitude = ""
+            longitude = ""
+            country_code = ""
+        else:
+            intranet = "外网".decode('utf-8')
+            country = ""
+            province = ""
+            city = ""
+            latitude = ""
+            longitude = ""
+            country_code = ""
+            try:
+                reader = geoip2.database.Reader(geo_db)
+                try:
+                    response = reader.city(dest_ip)
+                    country = response.country.names.get('zh-CN', u'')
+                    province = response.subdivisions.most_specific.names.get('zh-CN', u'')
+                    city = response.city.names.get('zh-CN', u'')
+                    latitude = response.location.latitude
+                    longitude = response.location.longitude
+                    country_code = response.country.iso_code
+                except Exception, e:
+                    pass
+                if not country:
+                    try:
+                        response = reader.city(dest_ip)
+                        country = response.country.names.get('en', '')
+                        province = response.subdivisions.most_specific.names.get('en', '')
+                        city = response.city.names.get('en', '')
+                        latitude = response.location.latitude
+                        longitude = response.location.longitude
+                        country_code = response.country.iso_code
+                    except:
+                        pass
+            except Exception, e:
+                s = sys.exc_info()
+                print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
+
+
+        return {
+            "intranet": intranet,
+            "province": province,
+            "city": city,
+            "country": country,
+            "longitude": longitude,
+            "country_code": country_code,
+            "latitude": latitude
+        }
+
+
+    def mac_manu_set(self,flow,mac,source,libpath):
+        key = source + "_manufacturer"
+        if mac:
+            firm = firms.search_inlist(mac,libpath)
+            if not firm:
+                flow[key] = ("", "")
+            else:
+                flow[key] = firm
+        else:
+            flow[key] = ""
+
+
+
+
+    def mongo_data(self, ACTIONS, cfg):
+        print "mongo in..."
         for action in ACTIONS:
             try:
                 passive_cfg = cfg.get("passive_cfg")
@@ -282,58 +310,68 @@ class Passiveasset:
                     return False
                 flow = action.get("_source")
                 if flow:
-                    detected_protocol_name=flow.get("detected_protocol_name")
-                    host_a_name = flow.get("host_a_name")
-                    host_b_name = flow.get("host_b_name")
+                    detected_protocol_name = flow.get("detected_protocol_name")
+                    host_a_name = flow.get("host_a_name", "")
+                    host_b_name = flow.get("host_b_name", "")
+                    pc_name = flow.get("host_name", "")
+                    os_name = flow.get("os", "")
+                    mac = flow.get("src_mac", "")
+                    src_manufacturer = flow.get("src_manufacturer","")
                     host_list = []
                     host_list.append(host_a_name)
-                    host_list.append(host_b_name)
+                    # host_list.append(host_b_name)
                     for host_name in host_list:
-                        temp_collect = mongo_client.find("passive_flow", {"host_name": host_name})
-                        if temp_collect.count()==0:
+                        if not IPdivide.is_internal_ip(host_a_name):
+                            continue
+                        temp_collect = mongo_client.find("passive_flow", {"host_name": host_name, })
+                        if temp_collect.count() == 0:
                             content = {
                                 "tags": [detected_protocol_name],
-                                "host_name": host_name
+                                "host_name": host_name,
+                                "pc_name": pc_name,
+                                "os_name": os_name,
+                                "mac": mac,
+                                "src_manufacturer":src_manufacturer
                             }
-                            mongo_client.insert_one(mongo_index,content)
+                            mongo_client.insert_one(mongo_index, content)
                         else:
                             tags = [detected_protocol_name]
                             for temp in temp_collect:
                                 tag = temp.get("tags")
-                                # print type(tag)
-                                if isinstance (tag,list):
+                                if isinstance(tag, list):
                                     tags.extend(tag)
-                                    tags=list(set(tags))
+                                    tags = list(set(tags))
                             content = {
                                 "host_name": host_name,
-                                "tags":tags
+                                "tags": tags
                             }
-                            if temp_collect.count()!= 1 :
-                                mongo_client.delete(mongo_index,{"host_name": host_name})
-                                mongo_client.insert_one(mongo_index,content)
+                            if pc_name:
+                                content["pc_name"] = pc_name
+                            if (os_name and "windows" in os_name.lower()) or (
+                                    os_name and "windows" not in temp_collect[0].get("os_name", "").lower()):
+                                content["os_name"] = os_name
+
+                            if temp_collect.count() != 1:
+                                mongo_client.delete(mongo_index, {"host_name": host_name})
+                                mongo_client.insert_one(mongo_index, content)
                             else:
                                 mongo_client.update_one(mongo_index, [{"host_name": host_name}, content])
                 else:
                     return False
-            except Exception,e:
+            except Exception, e:
                 s = sys.exc_info()
                 print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
 
-
-
-
-    def cfg_check(self,cfg):
+    def cfg_check(self, cfg):
         try:
             vlan = cfg.get("vlan")
             pcap = cfg.get("pcap")
-            # print vlan , pcap
             path = cfg.get("path")
             passive_cfg = cfg.get("passive_cfg")
             index_name = passive_cfg.get("es_passive").get("index_name")
             index_type = passive_cfg.get("es_passive").get("index_type")
             es_path = passive_cfg.get("es_passive").get("path")
             type = self.cfg.get("task_type")
-            # path = self.cfg.get("path")
             if not index_name:
                 return False
             if not index_type:
@@ -359,28 +397,23 @@ class Passiveasset:
 
     def run(self):
         try:
-            # print "cfg_check"
             if self.cfg_check(self.cfg):
                 self.server_path = self.cfg.get("path")
                 self.work_status = self.Ready  # 设置ready状态
-                access_time = self.cfg.get("access_time", 20)
+                access_time = self.cfg.get("access_time", 3600)
                 self.set_time(access_time)  # 设置启动时长
             else:
                 self.work_status = self.Error_state
             if self.work_status == self.Ready:
-                # print "make thread"
                 w = threading.Thread(target=self.capture, args=[self.cfg])
                 w.start()  # 创建任务线程，在ready状态下启动
                 w.join()
             self.task["status"] = 2
-        #                self.task["success"] = True
-        # self.work_status == self.Termination
         except Exception, e:
             print e
             self.task["success"] == False
             self.task["msg"] = str(e)
         self.task["status"] = 2
-        # logging.info("scanner task ending " + str(self.task))
 
     def set_time(self, time):
         self.accesstime = time
