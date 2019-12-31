@@ -1,5 +1,6 @@
 #ecoding:utf-8
 from pymongo import MongoClient
+
 class Mongoclass(object):
     '''
     some mongo tools

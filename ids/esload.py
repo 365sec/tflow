@@ -114,16 +114,3 @@ class ElasticObj:
             print hit['_source']['datetime']
         print len(search['hits']['hits'])
 
-
-
-
-
-obj = ElasticObj("suricata_flow", "suricata_flow_type","127.0.0.1")
-obj.create_index()
-#obj.Index_Data()
-
-# obj.IndexData()
-#obj.Delete_Index_Data("AW1rW62rivY3Jk6-XlF2")
-# csvfile = 'D:/work/ElasticSearch/exportExcels/2017-08-31_info.csv'
-# obj.Index_Data_FromCSV(csvfile)
-#obj.Get_Data_By_Body()

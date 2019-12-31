@@ -1,5 +1,4 @@
 
-
 def ip_into_int(ip):
     # (((((192 * 256) + 168) * 256) + 1) * 256) + 13
     return reduce(lambda x, y: (x << 8) + y, map(int, ip.split('.')))

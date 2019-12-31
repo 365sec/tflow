@@ -2,7 +2,6 @@
 import re
 import IPy
 
-
 def ip_into_int(ip):
     # (((((192 * 256) + 168) * 256) + 1) * 256) + 13
     return reduce(lambda x, y: (x << 8) + y, map(int, ip.split('.')))
@@ -32,7 +31,7 @@ def ipcheck(ip_addrr):
         return False
 
 
-def ip_graph_check(self,ip,ip_graph):
+def ip_graph_check(ip,ip_graph):
     return ip in IPy.IP(ip_graph)
 # if __name__ == '__main__':
 #     ip = '172.16.39.222'
