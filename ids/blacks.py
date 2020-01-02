@@ -5,7 +5,7 @@ import os
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
-class blackip():
+class Blackip():
     def __init__(self,cfg, blackip_path):
         self.path = cfg.get("path", "")
         self.port = int(cfg.get("port", 0))
@@ -21,11 +21,11 @@ class blackip():
                 return False
             if not self.blackip_rule_path():
                 return False
-            wfile = open(self.blackip_path,"w+" )
-            for data in results:
-                #print data
-                wfile.write(data)
-            return True
+            with open(self.blackip_path,"w+" ) as wfile:
+                for data in results:
+                    #print data
+                    wfile.write(data)
+                return True
         except Exception,e:
             print e
             return False
@@ -83,9 +83,9 @@ class blackip():
     def blackip_rule_path(self):
         try:
             if not os.path.exists(self.blackip_path):
-                file = open(self.blackip_path,"w+")
-                file.write("")
-                return True
+                with open(self.blackip_path,"w+") as file:
+                    file.write("")
+                    return True
             else:
                 return True
         except Exception,e:
@@ -103,7 +103,7 @@ class blackip():
 
 
 
-class blackdomain():
+class Blackdomain():
     def __init__(self,cfg, blackdomain_path):
         self.path = cfg.get("path", "")
         self.port = int(cfg.get("port", 0))
@@ -115,9 +115,9 @@ class blackdomain():
     def blackdomain_rule_path(self):
         try:
             if not os.path.exists(self.blackdomain_path):
-                file = open(self.blackdomain_path,"w+")
-                file.write("")
-                return True
+                with open(self.blackdomain_path,"w+") as file:
+                    file.write("")
+                    return True
             else:
                 return True
         except Exception,e:
@@ -184,11 +184,11 @@ class blackdomain():
                 return False
             if not self.blackdomain_rule_path():
                 return False
-            wfile = open(self.blackdomain_path,"w+" )
-            for data in results:
-                #print data
-                wfile.write(data)
-            return True
+            with open(self.blackdomain_path,"w+" ) as  wfile:
+                for data in results:
+                    #print data
+                    wfile.write(data)
+                return True
         except Exception,e:
             print e
             return False

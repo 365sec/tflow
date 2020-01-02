@@ -391,13 +391,13 @@ class Passiveasset:
             if self.work_status == self.Ready:
                 w = threading.Thread(target=self.capture, args=[self.cfg])
                 w.start()  # 创建任务线程，在ready状态下启动
-                w.join()
-            self.task["status"] = 2
+                #w.join()
+            # self.task["status"] = 2
         except Exception, e:
             logging.debug(str(e))
             self.task["success"] == False
             self.task["msg"] = str(e)
-        self.task["status"] = 2
+        # self.task["status"] = 2
 
     def set_time(self, time):
         self.accesstime = time

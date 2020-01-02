@@ -15,8 +15,6 @@ class Scheduler(threading.Thread):
         print "Scheduler  init"
         self.tasklist=[]
 
-
-
     def createtask(self,cfg):
         taskid = str(uuid.uuid4())
         task={"taskid":taskid,"cfg":cfg,"status":0}
@@ -49,7 +47,6 @@ class Scheduler(threading.Thread):
                 su.stop()
             del self.tasklist[index]
             return True
-
         print False
 
     # vcan_cfg = """{
@@ -80,7 +77,7 @@ class Scheduler(threading.Thread):
 
 scheduler=Scheduler()
 logging.info(id(scheduler))
-print scheduler
+#print scheduler
 
 def get_scheduler():
     logging.info(id(scheduler))

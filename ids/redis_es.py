@@ -215,7 +215,6 @@ class Suricata_es:
                             data =''
                     except Exception,e:
                         data=''
-
                     if not data :
                         continue
                     event_type =data.get("event_type")
@@ -326,8 +325,11 @@ class Suricata_es:
                     mode = ' -i '+ vlan
                 else:
                     mode = ' -r ' + pcap
-                blackip_obj = blacks.blackip(cfg=self.cfg.get("instrusion_cfg",{}).get("mongo_db",{}), blackip_path=self.cfg.get("instrusion_cfg",{}).get("user_defined_blackip_path",""))
-                blackdomain_obj = blacks.blackdomain(cfg=self.cfg.get("instrusion_cfg", {}).get("mongo_db", {}),blackdomain_path=self.cfg.get("instrusion_cfg", {}).get("user_defined_blackdomain_path", ""))
+                try:
+                    blackip_obj = blacks.Blackip(cfg=self.cfg.get("instrusion_cfg",{}).get("mongo_db",{}), blackip_path=self.cfg.get("instrusion_cfg",{}).get("user_defined_blackip_path",""))
+                    blackdomain_obj = blacks.Blackdomain(cfg=self.cfg.get("instrusion_cfg", {}).get("mongo_db", {}),blackdomain_path=self.cfg.get("instrusion_cfg", {}).get("user_defined_blackdomain_path", ""))
+                except Exception,e:
+                    print "comething wrong in blacks cfg"
                 if not blackip_obj.blackip_write():
                     print "something wrong happened in blackip write"
                 if not blackdomain_obj.blackdomain_write():
@@ -338,11 +340,11 @@ class Suricata_es:
                 w.start()  # 创建任务线程，在ready状态下启动
                 x =  threading.Thread(target=self.redis_data, args=[self.cfg])
                 x.start()
-                w.join()
-                self.task["status"] = 2
-                x.join()
+                # w.join()
+                # self.task["status"] = 2
+                # x.join()
                 # self.redis_data()
-                self.task["success"] = True
+                #self.task["success"] = True
         # self.work_status == self.Termination
         except Exception,e:
             logging.debug(str(e))
