@@ -1,4 +1,4 @@
-#coding:utf8
+ #coding:utf8
 '''
 author:liulinghong
 brief:elasticsearch
@@ -69,13 +69,8 @@ class ElasticObj:
         #print(res['created'])
 
     def bulk_Index_Data(self,ACTIONS):
-        print self.index_name,self.index_type
-        try:
-            bulk(self.es, ACTIONS, index=self.index_name)
-        except Exception,e:
-            print e
-
-
+        success,_  = bulk(self.es, ACTIONS, index=self.index_name)
+        # print('Performed %d actions' % success)
 
     def Delete_Index_Data(self,id):
         '''
@@ -119,171 +114,12 @@ class ElasticObj:
             print hit['_source']['datetime']
         print len(search['hits']['hits'])
 
-    def search_all(self,page):
-        return self.es.search(index=self.index_name, size = 10,body={'query': {'match_all': {}},'from':page*10,'size':10 })
-
-    def search_byid(self,id):
-        return  self.es.get(self.index_name,id=id,doc_type = self.index_type)
-
-    def search_filter(self,filter,page):
-        if not len(filter):
-            body = {'query': {'match_all': {}},'from':page*10,'size':10}
-        elif len(filter) == 1:
-            if  filter[0].get("datetime"):
-                body = {}
-                query={}
-                # body["size"]=0
-                query["range"]= filter[0]
-                body["query"]=query
-                body["size"] = 10
-                body["from"] = page * 10
-            else:
-                body={}
-                match = {}
-                match["match_phrase"] = filter[0]
-                body["query"] = match
-                body["size"]=10
-                body["from"]=page*10
-        else :
-            query = {}
-            must = []
-            for body in filter:
-                if body.get("datetime"):
-                    must.append({"range": body})
-                else:
-                    must.append({"match_phrase":body})
-            query["bool"] = {
-                "must":must
-            }
-            body = {
-                "query":query
-            }
-            body["size"] = 10
-            body["from"] = page * 10
-        print body
-        return self.es.search(index=self.index_name, size=10, body=body)
-
-
-
-    def descSort(self,array, key):
-        for i in range(len(array) - 1):
-            for j in range(len(array) - 1 - i):
-                if float(array[j][key]) < float(array[j + 1][key]):
-                    array[j], array[j + 1] = array[j + 1], array[j]
-        return array
-
-    def screen_condition(self,opt):
-        if opt == 'category':
-            body = {
-                "size": 0,
-                "query": {},
-                "aggs": {
-                    "category": {
-                        "terms": {
-                            "field": "alert.category.keyword",
-                            "size": 20
-                        }
-                    }
-                }
-            }
-        elif opt == 'src_ip':
-            body = {
-                "size": 0,
-                "query": {},
-                "aggs": {
-                    "src_ip": {
-                        "terms": {
-                            "field": "src_ip.keyword",
-                            "size": 20
-                        }
-                    }
-                }
-            }
-        elif opt == 'severity':
-            body = {
-                "size": 0,
-                "query": {},
-                "aggs": {
-                    "severity": {
-                        "terms": {
-                            "field": "alert.severity",
-                            "size": 20
-                        }
-                    }
-
-                }
-            }
-        elif opt == 'device_type':
-            body = {
-                "size": 0,
-                "query": {},
-                "aggs": {
-                    "device_type": {
-                        "terms": {
-                            "field": "device_type.keyword",
-                            "size": 20
-                        }
-                    }
-
-                }
-            }
-        elif opt == 'detected_protocol_name':
-            body = {
-                "size": 0,
-                "query": {},
-                "aggs": {
-                    "detected_protocol_name": {
-                        "terms": {
-                            "field": "detected_protocol_name.keyword",
-                            "size": 20
-                        }
-                    }
-
-                }
-            }
-        elif opt == 'host_a_name':
-            body = {
-                "size": 0,
-                "query": {},
-                "aggs": {
-                    "host_a_name": {
-                        "terms": {
-                            "field": "host_a_name.keyword",
-                            "size": 20
-                        }
-                    }
-
-                }
-            }
-        elif opt == 'host_b_name':
-            body = {
-                "size": 0,
-                "query": {},
-                "aggs": {
-                    "host_b.name": {
-                        "terms": {
-                            "field": "host_b_name.keyword",
-                            "size": 20
-                        }
-                    }
-
-                }
-            }
-
-        typelist = self.es.search(index=self.index_name, body=body)
-        try:
-            countlist = typelist.get("aggregations").get(opt).get("buckets")
-        except:
-            countlist=[]
-        return  self.descSort(countlist, "doc_count")
 
 
 
 
 
-#obj.Index_Data()
-
-#obj.IndexData()
+# obj.IndexData()
 #obj.Delete_Index_Data("AW1rW62rivY3Jk6-XlF2")
 # csvfile = 'D:/work/ElasticSearch/exportExcels/2017-08-31_info.csv'
 # obj.Index_Data_FromCSV(csvfile)

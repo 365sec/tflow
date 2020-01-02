@@ -5,7 +5,6 @@ import os
 import re
 import sys
 import threading
-import time
 import geoip2.database
 import IPy
 import pytz
@@ -15,6 +14,8 @@ import json
 import netcard_name
 import IPdivide
 import mongoclass
+import logging
+import blacks
 
 
 class Suricata_es:
@@ -38,7 +39,6 @@ class Suricata_es:
         local_format = "%Y-%m-%d %H:%M:%S"
         utc_dt = datetime.datetime.strptime(utc_time_str, utc_format)
         local_dt = utc_dt.replace(tzinfo=pytz.utc).astimezone(local_tz)
-        # print(local_dt)
         time_str = local_dt.strftime(local_format)
         return time_str
 
@@ -52,7 +52,6 @@ class Suricata_es:
         for action in ACTIONS:
             try:
                 instrusion_cfg = cfg.get("instrusion_cfg")
-                # print instrusion_cfg
                 mongo_db = instrusion_cfg.get("mongo_db")
                 if not mongo_db:
                     return False
@@ -71,7 +70,7 @@ class Suricata_es:
                     dest_ip = event.get("dest_ip")
                     src_ip = event.get("src_ip")
                     timestamp = event.get("timestamp")
-                    print timestamp
+                    #print timestamp
                     try:
                         if alert:
                             signature = alert.get("signature")
@@ -101,15 +100,13 @@ class Suricata_es:
                                     mongo_client.update_one(mongo_index_sign, [{"signature": signature}, content])
 
                     except Exception,e:
+                        logging.debug(str(e))
                         s = sys.exc_info()
                         print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
-
                     try:
-
                         host_list=[]
                         host_list.append(src_ip)
                         host_list.append(dest_ip)
-                        # print host_list
                         for host_name in host_list:
                             temp_collect = mongo_client.find(mongo_index, {"host_name": host_name})
                             if temp_collect.count() == 0:
@@ -135,12 +132,12 @@ class Suricata_es:
                                 else:
                                     mongo_client.update_one(mongo_index, [{"host_name": host_name}, content])
                     except Exception,e:
+                        logging.debug(str(e))
                         s = sys.exc_info()
                         print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
 
 
                     try:
-                        # print host_list
                         temp_collect = mongo_client.find(mongo_index_event, {"signature": signature})
                         if temp_collect.count() == 0:
                             content = {
@@ -165,10 +162,12 @@ class Suricata_es:
                             else:
                                 mongo_client.update_one(mongo_index_event, [{"signature": signature}, content])
                     except Exception,e:
+                        logging.debug(str(e))
                         pass
                 else:
                     return False
             except Exception, e:
+                logging.debug(str(e))
                 s = sys.exc_info()
                 print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
     def ipcheck(self, ip_addrr):
@@ -184,128 +183,101 @@ class Suricata_es:
     def ip_addrs_check(self,ip,ip_addrs):
         return ip in IPy.IP(ip_addrs)
 
+
     def redis_data(self,cfg):
-        ACTIONS=[]
-        print "redis data start!"
-        pool = redis.ConnectionPool(host='127.0.0.1', port=6379)
-        r = redis.Redis(connection_pool=pool)
-        instrusion_cfg=cfg.get("instrusion_cfg")
-        es_instrusion = instrusion_cfg.get("es_instrusion")
-        es_flow = instrusion_cfg.get("es_flow")
-        obj = esload1.ElasticObj(es_instrusion.get("index_name"), es_instrusion.get("index_type"), es_instrusion.get("path"))
-        flow = esload1.ElasticObj(es_flow.get("index_name"), es_flow.get("index_type"), es_flow.get("path"))
-        IP_addresses = cfg.get("IP_addresses")
-        ip_mode = cfg.get("ip_mode")
-        geo_db = instrusion_cfg.get("geo_db")
-        while True:
-            try:
-                if self.task["status"] == 2:
-                    break
+        try:
+            ACTIONS=[]
+            print "redis data start!"
+            pool = redis.ConnectionPool(host='127.0.0.1', port=6379)
+            r = redis.Redis(connection_pool=pool)
+            instrusion_cfg=cfg.get("instrusion_cfg")
+            es_instrusion = instrusion_cfg.get("es_instrusion")
+            es_flow = instrusion_cfg.get("es_flow")
+            obj = esload.ElasticObj(es_instrusion.get("index_name"), es_instrusion.get("index_type"), es_instrusion.get("path"))
+            flow = esload.ElasticObj(es_flow.get("index_name"), es_flow.get("index_type"), es_flow.get("path"))
+            IP_addresses = cfg.get("ipaddresses")
+            print cfg
+            ip_mode = cfg.get("ip_mode")
+            geo_db = instrusion_cfg.get("geo_db")
+            classtype_cfg_path = instrusion_cfg.get("classtype_cfg_path","")
+            #classtype_cfg_path = "classtype.json"
+            classtype_dict = json.loads(open(classtype_cfg_path).read())
+            while True:
                 try:
-                    ori_data = r.lpop("suricata")
-                    if ori_data :
-                        data1 = json.loads(json.dumps(ori_data).encode('utf-8'))
-                        data = json.loads(data1)
-                    else:
-                        data =''
-                except Exception,e:
-                    data=''
-                if not data:
-                    continue
-                event_type =data.get("event_type")
-                dest_ip =str(data.get("dest_ip"))
-                if IPdivide.is_internal_ip(dest_ip):
-                    intranet = "内网".decode('utf-8')
-                    country = "中国".decode('utf-8')
-                    province = ""
-                    city = ""
-                    latitude = ""
-                    longitude = ""
-                    country_code = ""
-                else:
-                    intranet = "外网".decode('utf-8')
-                    intranet = "外网".decode('utf-8')
-                    country = ""
-                    province = ""
-                    city = ""
-                    latitude = ""
-                    longitude = ""
-                    country_code = ""
+                    if self.task["status"] == 2:
+                        break
                     try:
-                        reader = geoip2.database.Reader(geo_db)
-                        try:
-                            response = reader.city(dest_ip)
-                            country = response.country.names.get('zh-CN', u'')
-                            province = response.subdivisions.most_specific.names.get('zh-CN', u'')
-                            city = response.city.names.get('zh-CN', u'')
-                            latitude = response.location.latitude
-                            longitude = response.location.longitude
-                            country_code = response.country.iso_code
-                        except Exception, e:
-                            pass
-                        if not country:
-                            try:
-                                response = reader.city(dest_ip)
-                                country = response.country.names.get('en', '')
-                                province = response.subdivisions.most_specific.names.get('en', '')
-                                city = response.city.names.get('en', '')
-                                latitude = response.location.latitude
-                                longitude = response.location.longitude
-                                country_code = response.country.iso_code
-                            except:
-                               pass
-                    except Exception, e:
-                        s = sys.exc_info()
-                        print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
-                dest_ip_geo = {
-                    "intranet": intranet,
-                    "province": province,
-                    "city": city,
-                    "country": country,
-                    "longitude": longitude,
-                    "country_code": country_code,
-                    "latitude": latitude
-                }
-                data["dest_ip_geo"] = dest_ip_geo
-                if event_type == 'alert':
-                    action = {
-                        "_index": obj.index_name,
-                        "_type": obj.index_type,
-                        "_source": data
-                    }
-                    # print ip_mode
-                    if ip_mode == 2:
-                        if self.ip_addrs_check(data.get("dest_ip"), IP_addresses) or self.ip_addrs_check(data.get("src_ip"), IP_addresses):
+                        ori_data = r.lpop("suricata")
+                        if ori_data :
+                            data1 = json.loads(json.dumps(ori_data).encode('utf-8'))
+                            data = json.loads(data1)
+                        else:
+                            data =''
+                    except Exception,e:
+                        data=''
+                    if not data :
+                        continue
+                    event_type =data.get("event_type")
+                    dest_ip =str(data.get("dest_ip"))
+                    src_ip = str(data.get("src_ip"))
+                    data["dest_ip_geo"] = self.area_info(dest_ip,geo_db)
+                    data["src_ip_geo"] =  self.area_info(src_ip,geo_db)
+                    if event_type == 'alert':
+                        classname = data.get("alert",{}).get("category","")
+                        classtype = classtype_dict.get(classname,{})
+                        data["alert"]["category"] = classtype.get("classname","其他".decode())
+                        data["alert"]["behavior"] = classtype.get("behavior","尝试".decode())
+                        data["alert"]["origin"] = classtype.get("origin","基础防御".decode())
+                        severity =data["alert"]["severity"]
+                        if severity == "1" or severity ==1:
+                            data["alert"]["severity"] = "高危"
+                        elif severity == "2" or severity ==2:
+                            data["alert"]["severity"] = "中危"
+                        else:
+                            data["alert"]["severity"] = "低危"
+                        action = {
+                            "_index": obj.index_name,
+                            "_type": obj.index_type,
+                            "_source": data
+                        }
+                        if ip_mode == 2:
+                            if self.ip_addrs_check(data.get("dest_ip"), IP_addresses) or self.ip_addrs_check(data.get("src_ip"), IP_addresses):
+                                ACTIONS.append(action)
+                                self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
+                                obj.bulk_Index_Data(ACTIONS)
+                                ACTIONS = []
+                        elif ip_mode == 1:
+                            if IPdivide.is_internal_ip(data.get("dest_ip")) or IPdivide.is_internal_ip( data.get("src_ip")):
+                                ACTIONS.append(action)
+                                self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
+                                obj.bulk_Index_Data(ACTIONS)
+                                ACTIONS = []
+                        else:
                             ACTIONS.append(action)
                             self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                             obj.bulk_Index_Data(ACTIONS)
-                            ACTIONS = []
-                    elif ip_mode == 1:
-                        if IPdivide.is_internal_ip(data.get("dest_ip")) or IPdivide.is_internal_ip( data.get("src_ip")):
-                            ACTIONS.append(action)
-                            self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
-                            obj.bulk_Index_Data(ACTIONS)
-                            ACTIONS = []
+                            ACTIONS=[]
                     else:
-                        ACTIONS.append(action)
-                        self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
-                        obj.bulk_Index_Data(ACTIONS)
-                        ACTIONS=[]
-                # else:
-                #     md5str = str(data.get('dest_ip')) + str(data.get('dest_port')) + str(
-                #         data.get('src_ip')) + str(data.get('src_port'))
-                #     _id = self.md5(md5str)
-                #     action = {
-                #         "_index": flow.index_name,
-                #         "_type": flow.index_type,
-                #         "_source": data
-                #     }
-                #     ACTIONS_flow.append(action)
-                #     if len(ACTIONS_flow)>200:
-                #         flow.bulk_Index_Data(ACTIONS_flow)
-            except Exception,e:
-                print e
-        flow.bulk_Index_Data(ACTIONS)
+                        print event_type,"-------------->",data
+                    # else:
+                    #     md5str = str(data.get('dest_ip')) + str(data.get('dest_port')) + str(
+                    #         data.get('src_ip')) + str(data.get('src_port'))
+                    #     _id = self.md5(md5str)
+                    #     action = {
+                    #         "_index": flow.index_name,
+                    #         "_type": flow.index_type,
+                    #         "_source": data
+                    #     }
+                    #     ACTIONS_flow.append(action)
+                    #     if len(ACTIONS_flow)>200:
+                    #         flow.bulk_Index_Data(ACTIONS_flow)
+                except Exception,e:
+                    s = sys.exc_info()
+                    print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
+                    print e
+            flow.bulk_Index_Data(ACTIONS)
+        except Exception,e:
+            logging.error(str(e))
 
 
     def cfg_check(self):
@@ -325,7 +297,6 @@ class Suricata_es:
                         return False
             return True
         except Exception,e:
-
             s = sys.exc_info()
             print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
             return False
@@ -335,6 +306,9 @@ class Suricata_es:
         try:
             os.system(command)
         except Exception,e:
+            logging.debug(str(e))
+            s = sys.exc_info()
+            print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
             print e
         # self.work_status = self.work_status
 
@@ -351,20 +325,29 @@ class Suricata_es:
                     mode = ' -i '+ vlan
                 else:
                     mode = ' -r ' + pcap
+                try:
+                    blackip_obj = blacks.Blackip(cfg=self.cfg.get("instrusion_cfg",{}).get("mongo_db",{}), blackip_path=self.cfg.get("instrusion_cfg",{}).get("user_defined_blackip_path",""))
+                    blackdomain_obj = blacks.Blackdomain(cfg=self.cfg.get("instrusion_cfg", {}).get("mongo_db", {}),blackdomain_path=self.cfg.get("instrusion_cfg", {}).get("user_defined_blackdomain_path", ""))
+                except Exception,e:
+                    print "comething wrong in blacks cfg"
+                if not blackip_obj.blackip_write():
+                    print "something wrong happened in blackip write"
+                if not blackdomain_obj.blackdomain_write():
+                    print "something wrong happened in blackdomain write"
                 command = executable+" -c "+ suricata_yaml + mode
                 print command
                 w = threading.Thread(target=self.suricata_vlan, args=[command])
                 w.start()  # 创建任务线程，在ready状态下启动
                 x =  threading.Thread(target=self.redis_data, args=[self.cfg])
                 x.start()
-                w.join()
-                self.task["status"] = 2
-                x.join()
+                # w.join()
+                # self.task["status"] = 2
+                # x.join()
                 # self.redis_data()
-                self.task["success"] = True
-
+                #self.task["success"] = True
         # self.work_status == self.Termination
         except Exception,e:
+            logging.debug(str(e))
             s = sys.exc_info()
             print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
             # self.task["status"] = 2
@@ -382,6 +365,61 @@ class Suricata_es:
             return True
         except Exception,e:
             return False
+
+
+    def area_info(self,ip,geo_db):
+        if IPdivide.is_internal_ip(ip):
+            intranet = "内网".decode('utf-8')
+            country = "中国".decode('utf-8')
+            province = ""
+            city = ""
+            latitude = ""
+            longitude = ""
+            country_code = "cn"
+        else:
+            intranet = "外网".decode('utf-8')
+            country = ""
+            province = ""
+            city = ""
+            latitude = ""
+            longitude = ""
+            country_code = ""
+            try:
+                reader = geoip2.database.Reader(geo_db)
+                try:
+                    response = reader.city(ip)
+                    country = response.country.names.get('zh-CN', u'')
+                    province = response.subdivisions.most_specific.names.get('zh-CN', u'')
+                    city = response.city.names.get('zh-CN', u'')
+                    latitude = response.location.latitude
+                    longitude = response.location.longitude
+                    country_code = response.country.iso_code
+                except Exception, e:
+                    pass
+                if not country:
+                    try:
+                        response = reader.city(ip)
+                        country = response.country.names.get('en', '')
+                        province = response.subdivisions.most_specific.names.get('en', '')
+                        city = response.city.names.get('en', '')
+                        latitude = response.location.latitude
+                        longitude = response.location.longitude
+                        country_code = response.country.iso_code
+                    except:
+                        pass
+            except Exception, e:
+                s = sys.exc_info()
+                print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
+        ip_geo = {
+            "intranet": intranet,
+            "province": province,
+            "city": city,
+            "country": country,
+            "longitude": longitude,
+            "country_code": str(country_code).lower(),
+            "latitude": latitude
+        }
+        return ip_geo
 
 
 

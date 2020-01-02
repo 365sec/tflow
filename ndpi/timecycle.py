@@ -2,7 +2,6 @@
 import datetime
 import time
 
-
 def str_time_to_utc(strtime):
     timestamp = datetime.datetime.strptime(strtime, '%Y-%m-%d %H:%M:%S')
     utc_timestamp = timestamp - datetime.timedelta(hours=1)

@@ -7,6 +7,7 @@ description:Packages Passive flow detection, call executable program, get standa
 time:2019:9:27
 '''
 import datetime
+import logging
 import time
 from subprocess import *
 import threading
@@ -18,28 +19,11 @@ import IPy
 import firms
 import netcard_name, IPdivide
 from mongoclass import Mongoclass
-
 import sys
-
 reload(sys)
 sys.setdefaultencoding('utf-8')
-
-# from mongo_config import mongo_settings as settings
-# from pymongo import MongoClient
-#
-# settings = {
-#   "ip":'172.16.39.15',   #ip
-#   "port":27017,
-#   "db_name" : "mydb",
-#   "set_name" : "prads"
-# }
-# conn = MongoClient(settings["ip"], settings["port"])
-# db = conn[settings["db_name"]]
-# my_set = db[settings["set_name"]]
 import esload
 import json
-
-
 class Passiveasset:
     def __init__(self, task):
         self.category_map = self.category_map = {
@@ -89,7 +73,6 @@ class Passiveasset:
         return m.hexdigest()
 
     def capture(self, cfg):
-
         try:
             vlan = cfg.get("vlan")
             pcap = cfg.get("pcap")
@@ -120,7 +103,7 @@ class Passiveasset:
             print "启动成功"
             self.work_status = self.Running
         except Exception, e:
-            print e
+            logging.error(str(e))
             self.task["status"] = 2
             return 0
 
@@ -173,12 +156,13 @@ class Passiveasset:
                         flow["classify"] = ""
                         self.mac_manu_set(flow, flow.get("src_mac",""),"src",firms_lib_path)
                         self.mac_manu_set(flow, flow.get("dest_mac",""),"dest",firms_lib_path )
-                        print flow["src_manufacturer"]
                         md5str = str(flow.get('host_a_name')) + str(flow.get(' host_a_port')) + str(
                             flow.get('host_b_name')) + str(flow.get('host_b_port'))
                         _id = self.md5(md5str)
                         dest_ip_geo = self.set_geo(str(flow.get("host_b_name")),geo_db)
+                        src_ip_geo = self.set_geo(str(flow.get("host_a_name")),geo_db)
                         flow["dest_ip_geo"] = dest_ip_geo
+                        flow["src_ip_geo"] = src_ip_geo
                         action = {
                             "_index": obj.index_name,
                             "_type": obj.index_type,
@@ -205,12 +189,11 @@ class Passiveasset:
                                             obj.bulk_Index_Data(ACTIONS)
                                             ACTIONS = []
                                 else:
-                                    print len(ACTIONS)
+                                    #print len(ACTIONS)
                                     ACTIONS.append(action)
-                                    if len(ACTIONS) > 50:
-                                        self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
-                                        obj.bulk_Index_Data(ACTIONS)
-                                        ACTIONS = []
+                                    self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
+                                    obj.bulk_Index_Data(ACTIONS)
+                                    ACTIONS = []
                                     # print action
                         except Exception, e:
                             print 5, e
@@ -230,7 +213,7 @@ class Passiveasset:
             city = ""
             latitude = ""
             longitude = ""
-            country_code = ""
+            country_code = "cn"
         else:
             intranet = "外网".decode('utf-8')
             country = ""
@@ -273,7 +256,7 @@ class Passiveasset:
             "city": city,
             "country": country,
             "longitude": longitude,
-            "country_code": country_code,
+            "country_code": str(country_code).lower(),
             "latitude": latitude
         }
 
@@ -283,7 +266,7 @@ class Passiveasset:
         if mac:
             firm = firms.search_inlist(mac,libpath)
             if not firm:
-                flow[key] = ("", "")
+                flow[key] = ""
             else:
                 flow[key] = firm
         else:
@@ -360,6 +343,7 @@ class Passiveasset:
                     return False
             except Exception, e:
                 s = sys.exc_info()
+                logging.debug(str(e))
                 print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
 
     def cfg_check(self, cfg):
@@ -407,13 +391,13 @@ class Passiveasset:
             if self.work_status == self.Ready:
                 w = threading.Thread(target=self.capture, args=[self.cfg])
                 w.start()  # 创建任务线程，在ready状态下启动
-                w.join()
-            self.task["status"] = 2
+                #w.join()
+            # self.task["status"] = 2
         except Exception, e:
-            print e
+            logging.debug(str(e))
             self.task["success"] == False
             self.task["msg"] = str(e)
-        self.task["status"] = 2
+        # self.task["status"] = 2
 
     def set_time(self, time):
         self.accesstime = time
@@ -427,6 +411,7 @@ class Passiveasset:
             self.task["status"] = 2
             return True
         except Exception, e:
+            logging.debug(str(e))
             return False
 
 

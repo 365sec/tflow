@@ -126,6 +126,3 @@ def search_inlist(mac,firm_lib):
         s = sys.exc_info()
         print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
         return None
-
-if __name__ =="__main__":
-    print search_inlist("00:1B:C5:00:10:00","../lib.txt")

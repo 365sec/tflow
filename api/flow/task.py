@@ -8,13 +8,13 @@ import logging
 import json
 import paramiko
 task_namespace = Namespace("task", description="Endpoint to retrieve task")
-
+logger = logging.getLogger('tapp_flow')
 @task_namespace.route('/start')
 class Create(Resource):
     def get(self):
         sc = get_scheduler()
-        logging.info("create")
-        logging.info(id(sc))
+        logger.info("create")
+        logger.info(id(sc))
         return {"get": "hello world"}
     def post(self):
         try:
@@ -32,48 +32,54 @@ class Create(Resource):
 #            if  cfg.get("es_passive_name",None) == None:
 #                return {"success": False, "msg": "es索引名 不能为空"}
 #            if  cfg.get("es_passive_type",None) == None:
-#                return {"success": False, "msg": "es索引类型 不能为空"}
+#                return {"success": False, "msg": "es索引类型 不能为空"
 #            if  cfg.get("path",None) == None:
 #                return {"success": False, "msg": "es IP地址 不能为空"}
-            print cfg
             if cfg.get("vlan",None) == None:
+                logger.debug("vlan 不能为空")
                 return {"success": False, "msg": "vlan 不能为空"}
             if cfg.get("path", None) == None:
+                logger.debug("path 不能为空")
                 return {"success": False, "msg": "path 不能为空"}
-#            if cfg.get("access_time", None) == None:
-#                return {"success": False, "msg": "access_time 不能为空"}
-#            if cfg.get("temp_flow", None) == None:
-#                return {"success": False, "msg": "temp_flow 不能为空"}
             task_type = cfg.get("task_type", None)
             if task_type  == None:
+                logger.debug("任务类型 错误")
                 return {"success": False, "msg": "任务类型  不能为空"}
             else:
                 if task_type not in ["passive_vlan", "suricata_vlan","passive_pcap", "suricata_pcap"]:
-                    return {"success": False, "msg": "任务类型 错误 "}
+                    logger.debug("任务类型  不能为空")
+                    return {"success": False, "msg": "任务类型 错误"}
                 if  task_type == "passive_pcap" or task_type =="suricata_pcap":
-                    if    cfg.get("path", "") == "":
+                    if cfg.get("path", "") == "":
+                        logger.debug("pcap路径不能为空")
                         return {"success": False, "msg": "pcap路径不能为空 "}
                 if  task_type == "passive_vlan" or task_type =="suricata_vlan":
                     if cfg.get("vlan", "") == "":
-                        return {"success": False, "msg": "vlan路径不能为空 "}
+                        logger.debug("pcap路径不能为空")
+                        return {"success": False, "msg": "vlan路径不能为空"}
             type = cfg.get("task_type")
             for task in sc.tasklist:
                 task_cfg = task.get("cfg")
                 task_typex = task_cfg.get("task_type")
                 status = task.get("status")
                 if "suricata" in type and "suricata" in task_typex and status in [0,1]:
+                    logger.debug("重复下发任务")
                     return {"success": False, "msg": "重复下发任务"}
                 if "passive" in type and "passive" in task_typex and status in [0,1]:
+                    logger.debug("重复下发任务")
                     return {"success": False, "msg": "重复下发任务"}
-                if "passive" in type and "suricata" in task_typex and status in [0,1]:
-                    return {"success": False, "msg": "已存在入侵检测任务"}
-                if "suricata" in type and "passive" in task_typex and status in [0,1]:
-                    return {"success": False, "msg": "已存在流量分析任务"}
+                # if "passive" in type and "suricata" in task_typex and status in [0,1]:
+                #     logger.debug("已存在入侵检测任务")
+                #     return {"success": False, "msg": "已存在入侵检测任务"}
+                # if "suricata" in type and "passive" in task_typex and status in [0,1]:
+                #     logger.debug("已存在流量分析任务")
+                #     return {"success": False, "msg": "已存在流量分析任务"}
             taskid = sc.createtask(cfg)
-            print taskid
+            logger.debug("成功下发任务")
             return   {"success": True,"taskid":taskid, "msg": "成功下发任务"}
         except Exception as e:
             print  {"success": False,"msg": str(e)}
+            logging.error(str(e))
         return {"success": False,"msg":""}
 
 
