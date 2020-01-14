@@ -24,6 +24,7 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 import esload
 import json
+import uuid
 class Passiveasset:
     def __init__(self, task):
         self.category_map = self.category_map = {
@@ -132,7 +133,9 @@ class Passiveasset:
                 if ',' in line:
                     try:
                         line = line.encode('utf-8')
-                        temp_datalist = line.split(',')
+                        #print line
+                        temp_datalist =  re.split(r",(?![^(]*\))",line)
+                        #print temp_datalist
                         if len(head_key) > len(temp_datalist):
                             continue
                         flow = {}
@@ -154,6 +157,16 @@ class Passiveasset:
                         flow["bytes"] = int(flow.get("src2dst_bytes", 0)) + int(flow.get("dst2src_bytes", 0))
                         flow["category"] = "软件".decode('utf-8')
                         flow["classify"] = ""
+                        try:
+                            flow["last_seen"] = self.timestramp2time(flow["last_seen"])
+                            flow["first_seen"] = self.timestramp2time(flow["first_seen"])
+                        except Exception,e:
+                            print e
+                        host_name = flow.get("host_name", "")
+                        if host_name:
+                            if flow.get("detected_app_protocol") != "10" and flow.get("detected_app_protocol") != 10 and not IPdivide.ipcheck(host_name):
+                                flow["domain"] = host_name
+                                flow["host_name"] = ""
                         self.mac_manu_set(flow, flow.get("src_mac",""),"src",firms_lib_path)
                         self.mac_manu_set(flow, flow.get("dest_mac",""),"dest",firms_lib_path )
                         md5str = str(flow.get('host_a_name')) + str(flow.get(' host_a_port')) + str(
@@ -169,7 +182,7 @@ class Passiveasset:
                             "_id": _id,
                             "_source": flow
                         }
-                        #print action,'\n',ip_mode
+                        #print action
                         try:
                             if IPdivide.ipcheck(flow.get("host_a_name")) and IPdivide.ipcheck(flow.get("host_b_name")) and action:
                                 if ip_mode == 2:
@@ -179,6 +192,7 @@ class Passiveasset:
                                         if len(ACTIONS) > 50:
                                             self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                                             obj.bulk_Index_Data(ACTIONS)
+                                            self.outreach(ACTIONS,passive_cfg)
                                             ACTIONS = []
                                 elif ip_mode == 1:
                                     if IPdivide.is_internal_ip(flow.get("host_a_name")) or IPdivide.is_internal_ip(
@@ -187,13 +201,18 @@ class Passiveasset:
                                         if len(ACTIONS) > 50:
                                             self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                                             obj.bulk_Index_Data(ACTIONS)
+                                            self.outreach(ACTIONS, passive_cfg)
                                             ACTIONS = []
                                 else:
                                     #print len(ACTIONS)
                                     ACTIONS.append(action)
-                                    self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
-                                    obj.bulk_Index_Data(ACTIONS)
-                                    ACTIONS = []
+                                    if len(ACTIONS) > 50:
+                                        self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
+                                        obj.bulk_Index_Data(ACTIONS)
+                                        self.outreach(ACTIONS, passive_cfg)
+                                        ACTIONS = []
+                            else:
+                                print "invaild ip format "
                                     # print action
                         except Exception, e:
                             print 5, e
@@ -277,20 +296,20 @@ class Passiveasset:
 
     def mongo_data(self, ACTIONS, cfg):
         print "mongo in..."
+        passive_cfg = cfg.get("passive_cfg")
+        # print passive_cfg
+        mongo_db = passive_cfg.get("mongo_db")
+        if not mongo_db:
+            return False
+        mongo_path = mongo_db.get("path")
+        mongo_port = mongo_db.get("port")
+        mongo_index = mongo_db.get("index")
+        mongo_database = mongo_db.get("database")
+        mongo_client = Mongoclass(mongo_path, int(mongo_port), mongo_database)
+        if not mongo_client.get_state():
+            return False
         for action in ACTIONS:
             try:
-                passive_cfg = cfg.get("passive_cfg")
-                # print passive_cfg
-                mongo_db = passive_cfg.get("mongo_db")
-                if not mongo_db:
-                    return False
-                mongo_path = mongo_db.get("path")
-                mongo_port = mongo_db.get("port")
-                mongo_index = mongo_db.get("index")
-                mongo_database = mongo_db.get("database")
-                mongo_client = Mongoclass(mongo_path, int(mongo_port), mongo_database)
-                if not mongo_client.get_state():
-                    return False
                 flow = action.get("_source")
                 if flow:
                     detected_protocol_name = flow.get("detected_protocol_name")
@@ -330,10 +349,12 @@ class Passiveasset:
                             }
                             if pc_name:
                                 content["pc_name"] = pc_name
-                            if (os_name and "windows" in os_name.lower()) or (
-                                    os_name and "windows" not in temp_collect[0].get("os_name", "").lower()):
+                            else:
+                                content["pc_name"] = ""
+                            if os_name:
                                 content["os_name"] = os_name
-
+                            else:
+                                content["os_name"] =""
                             if temp_collect.count() != 1:
                                 mongo_client.delete(mongo_index, {"host_name": host_name})
                                 mongo_client.insert_one(mongo_index, content)
@@ -413,5 +434,65 @@ class Passiveasset:
         except Exception, e:
             logging.debug(str(e))
             return False
+
+
+    def outreach(self,ACTIONS,passive_cfg):
+        try:
+            mongo_db = passive_cfg.get("mongo_db")
+            if not mongo_db:
+                return False
+            mongo_path = mongo_db.get("path")
+            mongo_port = mongo_db.get("port")
+            mongo_index = str(mongo_db.get("index"))+"outreach"
+            mongo_database = mongo_db.get("database")
+            mongo_client = Mongoclass(mongo_path, int(mongo_port), mongo_database)
+            if not mongo_client.get_state():
+                return False
+            for action in ACTIONS:
+                flow  = action.get("_source",{})
+                content={}
+                domain = flow.get("domain","")
+                if domain:
+                    first_seen = flow.get("first_seen","")
+                    last_seen = flow.get("last_seen", "")
+                    dest_ip_geo =  flow.get("dest_ip_geo", {})
+                    dst2src_bytes = float(flow.get("dst2src_bytes", ""))
+                    src2dst_bytes = float(flow.get("src2dst_bytes", ""))
+                    detected_protocol_name =  flow.get("detected_protocol_name", "")
+                    host_b_name =  flow.get("host_b_name", "")
+                    host_a_name =  flow.get("host_a_name", "")
+                    content["first_seen"]=first_seen
+                    content["last_seen"] = last_seen
+                    content["country_code"] = dest_ip_geo.get("country_code","")
+                    content["country"] = dest_ip_geo.get("country","")
+                    content["dst2src_bytes"] = dst2src_bytes
+                    content["src2dst_bytes"] = src2dst_bytes
+                    content["protocol_name"] = detected_protocol_name
+                    content["domain"] = domain
+                    content["source_ip"]=host_a_name
+                    content["dest_ip"]=host_b_name
+                    temp_collect = mongo_client.find(mongo_index, {"domain": domain,"source_ip":host_a_name})
+                    if temp_collect.count() == 0:
+                        content["times"] = 1
+                        content["orid"] = str(uuid.uuid4()).decode("utf-8")
+                        mongo_client.insert_one(mongo_index, content)
+                    else:
+                        for data in temp_collect:
+                            dst2src_bytes += float(data.get("dst2src_bytes"))
+                            src2dst_bytes += float(data.get("src2dst_bytes"))
+                            times =int(data.get("times"))
+                            times +=1
+                        content["orid"] = data.get("orid")
+                        content["times"] = times
+                        content["dst2src_bytes"] = dst2src_bytes
+                        content["src2dst_bytes"] = src2dst_bytes
+                        mongo_client.update_one(mongo_index, [{"domain": domain,"source_ip":host_a_name}, content])
+        except Exception,e:
+            print e
+
+    def timestramp2time(self,timestramp):
+        timeArray = time.localtime(float(timestramp))
+        otherStyleTime = time.strftime("%Y-%m-%d %H:%M:%S", timeArray)
+        return otherStyleTime
 
 

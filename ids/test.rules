@@ -1,7 +1,0 @@
-alert dns any any -> any any (msg:"黑域名"; dns_query; content:"1111.com"; nocase;endswith; classtype:command-and-control; metadata: former_category; sid:7700001; rev:1;metadata:created_at 2018_09_19; )
-alert dns any any -> any any (msg:"黑域名"; dns_query; content:"xxx.com"; nocase;endswith; classtype:command-and-control; metadata: former_category; sid:7700002; rev:1;metadata:created_at 2018_09_19; )
-alert dns any any -> any any (msg:"黑域名"; dns_query; content:"123llkkk.com"; nocase;endswith; classtype:command-and-control; metadata: former_category; sid:7700003; rev:1;metadata:created_at 2018_09_19; )
-alert dns any any -> any any (msg:"黑域名"; dns_query; content:"www.365sec.com"; nocase;endswith; classtype:command-and-control; metadata: former_category; sid:7700004; rev:1;metadata:created_at 2018_09_19; )
-alert dns any any -> any any (msg:"黑域名"; dns_query; content:"365sec.com"; nocase;endswith; classtype:command-and-control; metadata: former_category; sid:7700005; rev:1;metadata:created_at 2018_09_19; )
-alert dns any any -> any any (msg:"黑域名"; dns_query; content:".com"; nocase;endswith; classtype:command-and-control; metadata: former_category; sid:7700006; rev:1;metadata:created_at 2018_09_19; )
-alert dns any any -> any any (msg:"黑域名"; dns_query; content:"365sec"; nocase;endswith; classtype:command-and-control; metadata: former_category; sid:7700007; rev:1;metadata:created_at 2018_09_19; )
