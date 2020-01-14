@@ -1,1 +1,67 @@
-{"passive": {"mongo_db": {"path": "172.16.39.15", "index": "passive_flow", "port": "27017", "database": "flow_analysis"}, "geo_db": "/home/td01/GeoLite2-City.mmdb", "temp_flow": "temp_flow.json", "default_access_time": 86400, "NIC2": "ens192", "passive_hz": 5, "NIC1": "ens160", "es_passive": {"username": "", "index_name": "passive_flow", "index_type": "passive_flow_type", "path": "0.0.0.0", "password": "", "port": 9200}, "executable": "./ndpiReader"}, "instrusion": {"mongo_db": {"path": "172.16.39.15", "index": "instrusion", "port": "27017", "database": "flow_analysis"}, "geo_db": "/home/td01/GeoLite2-City.mmdb", "redis": {"redis_path": "127.0.0.1", "redis_port": 6379}, "suricata_yaml": "/home/flow/service_test/suricata.yaml", "NIC2": "ens192", "default_time": 86400, "NIC1": "ens160", "es_flow": {"username": "", "index_name": "suricata_flow", "index_type": "suricata_flow_type", "path": "0.0.0.0", "password": "", "port": 9200}, "executable": "./suricata", "es_instrusion": {"username": "", "index_name": "suricata_instrusion", "index_type": "suricata_instrusion_type", "path": "0.0.0.0", "password": "", "port": 9200}}, "common": {"domain": "http://0.0.0.0:5050/"}}
+{
+	"passive": {
+		"mongo_db": {
+			"path": "172.16.39.15",
+			"index": "passive_flow",
+			"port": "27017",
+			"database": "flow_analysis"
+		},
+		"geo_db": "/td01/tflow/bin/GeoLite2-City.mmdb",
+		"keys_list_paths" : "/td01/tflow/bin/keys.json",
+        "mac_firms" : "/td01/tflow/bin/mac_firms.txt",
+		"temp_flow": "temp_flow.csv",
+		"default_access_time": 86400,
+		"NIC2": "ens192",
+		"passive_hz": 5,
+		"NIC1": "ens160",
+		"es_passive": {
+			"username": "",
+			"index_name": "passive_flow",
+			"index_type": "passive_flow_type",
+			"path": "172.16.39.15",
+			"password": "",
+			"port": 9200
+		},
+		"executable": "/td01/tflow/bin/passive/ndpiReader"
+	},
+	"instrusion": {
+		"mongo_db": {
+			"path": "172.16.39.15",
+			"index": "instrusion",
+			"port": "27017",
+			"database": "flow_analysis"
+		},
+        "user_defined_blackip_path":"/td01/tflow/bin/ids/iprep/user-defined.list",
+        "user_defined_blackdomain_path":"/td01/tflow/bin/ids/rules/user-defined-blackdomain.rules",
+		"geo_db": "/td01/tflow/bin/GeoLite2-City.mmdb",
+		"redis": {
+			"redis_path": "172.16.39.15",
+			"redis_port": 6379
+		},
+		"suricata_yaml": "/td01/tflow/bin/ids/suricata.yaml",
+		"classtype_cfg_path" : "/td01/tflow/bin/classtype.json",
+		"NIC2": "ens192",
+		"default_time": 86400,
+		"NIC1": "ens160",
+		"es_flow": {
+			"username": "",
+			"index_name": "suricata_flow",
+			"index_type": "",
+			"path": "172.16.39.15",
+			"password": "",
+			"port": 9200
+		},
+		"executable": "/td01/tflow/bin/ids/suricata",
+		"es_instrusion": {
+			"username": "",
+			"index_name": "suricata_instrusion",
+			"index_type": "suricata_instrusion_type",
+			"path": "172.16.39.15",
+			"password": "",
+			"port": 9200
+		}
+	},
+	"common": {
+		"domain": "http://172.16.39.15:5050/"
+	}
+}
