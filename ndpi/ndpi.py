@@ -25,6 +25,8 @@ sys.setdefaultencoding('utf-8')
 import esload
 import json
 import uuid
+import traceback
+import flow_counter
 class Passiveasset:
     def __init__(self, task):
         self.category_map = self.category_map = {
@@ -66,6 +68,7 @@ class Passiveasset:
         self.server_path = ""
         self.task = task
         self.cfg = self.task.get("cfg")
+        self.flowcount = flow_counter.FlowCounter(self.cfg.get("passive_cfg"))
         print "ndpi init ..."
 
     def md5(self, str):
@@ -75,7 +78,7 @@ class Passiveasset:
 
     def capture(self, cfg):
         try:
-            vlan = cfg.get("vlan")
+            vlan = cfg.get("vlan","")
             pcap = cfg.get("pcap")
             path = cfg.get("path")
             passive_cfg = cfg.get("passive_cfg")
@@ -121,6 +124,8 @@ class Passiveasset:
             print 'running1'
             ACTIONS = []
             count = 0
+            fc = threading.Thread(target=self.flowcount.save_data_in_db)
+            fc.start()
             for line in p.stdout:
                 if not line:
                     count += 1
@@ -156,6 +161,7 @@ class Passiveasset:
                         flow["packets"] = int(flow.get("src2dst_packets", 0)) + int(flow.get("dst2src_packets", 0))
                         flow["bytes"] = int(flow.get("src2dst_bytes", 0)) + int(flow.get("dst2src_bytes", 0))
                         flow["category"] = "软件".decode('utf-8')
+                        flow["vlan"] = vlan
                         flow["classify"] = ""
                         try:
                             flow["last_seen"] = self.timestramp2time(flow["last_seen"])
@@ -193,6 +199,8 @@ class Passiveasset:
                                             self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                                             obj.bulk_Index_Data(ACTIONS)
                                             self.outreach(ACTIONS,passive_cfg)
+                                            # flowcount.read_flow_from_db()
+                                            self.flow_counter_model(self.flowcount,ACTIONS)
                                             ACTIONS = []
                                 elif ip_mode == 1:
                                     if IPdivide.is_internal_ip(flow.get("host_a_name")) or IPdivide.is_internal_ip(
@@ -202,6 +210,7 @@ class Passiveasset:
                                             self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                                             obj.bulk_Index_Data(ACTIONS)
                                             self.outreach(ACTIONS, passive_cfg)
+                                            self.flow_counter_model(self.flowcount, ACTIONS)
                                             ACTIONS = []
                                 else:
                                     #print len(ACTIONS)
@@ -210,6 +219,7 @@ class Passiveasset:
                                         self.mongo_data(ACTIONS=ACTIONS, cfg=cfg)
                                         obj.bulk_Index_Data(ACTIONS)
                                         self.outreach(ACTIONS, passive_cfg)
+                                        self.flow_counter_model(self.flowcount, ACTIONS)
                                         ACTIONS = []
                             else:
                                 print "invaild ip format "
@@ -430,6 +440,7 @@ class Passiveasset:
         try:
             os.system("ps -ef|grep " + self.cfg.get("path") + " |grep -v grep|awk '{print $2}'|xargs kill -9")
             self.task["status"] = 2
+            self.flowcount.status=0
             return True
         except Exception, e:
             logging.debug(str(e))
@@ -452,15 +463,27 @@ class Passiveasset:
                 flow  = action.get("_source",{})
                 content={}
                 domain = flow.get("domain","")
-                if domain:
+                detected_app_protocol = str(flow.get("detected_app_protocol",""))
+                if domain and detected_app_protocol != '5':
+                    similardoamin,domain_classtype = self.search_domain_classtype(domain)
+                    if domain_classtype:
+                        content["classtype"] = domain_classtype
+                    else:
+                        content["classtype"]=""
                     first_seen = flow.get("first_seen","")
                     last_seen = flow.get("last_seen", "")
                     dest_ip_geo =  flow.get("dest_ip_geo", {})
                     dst2src_bytes = float(flow.get("dst2src_bytes", ""))
                     src2dst_bytes = float(flow.get("src2dst_bytes", ""))
                     detected_protocol_name =  flow.get("detected_protocol_name", "")
+                    country_code=dest_ip_geo.get("country_code", "")
+                    if country_code !="cn":
+                        domain_geo = 1
+                    else:
+                        domain_geo = 0
                     host_b_name =  flow.get("host_b_name", "")
                     host_a_name =  flow.get("host_a_name", "")
+                    content["domain_geo"] = domain_geo
                     content["first_seen"]=first_seen
                     content["last_seen"] = last_seen
                     content["country_code"] = dest_ip_geo.get("country_code","")
@@ -470,29 +493,308 @@ class Passiveasset:
                     content["protocol_name"] = detected_protocol_name
                     content["domain"] = domain
                     content["source_ip"]=host_a_name
-                    content["dest_ip"]=host_b_name
                     temp_collect = mongo_client.find(mongo_index, {"domain": domain,"source_ip":host_a_name})
                     if temp_collect.count() == 0:
+                        content["dest_ip"] = [host_b_name]
                         content["times"] = 1
                         content["orid"] = str(uuid.uuid4()).decode("utf-8")
                         mongo_client.insert_one(mongo_index, content)
                     else:
+                        source_ip_list=[]
                         for data in temp_collect:
                             dst2src_bytes += float(data.get("dst2src_bytes"))
                             src2dst_bytes += float(data.get("src2dst_bytes"))
+                            source_ip_list = data.get("content",[])
+                            source_ip_list.append(host_b_name)
                             times =int(data.get("times"))
                             times +=1
                         content["orid"] = data.get("orid")
                         content["times"] = times
+                        content["dest_ip"] = source_ip_list
                         content["dst2src_bytes"] = dst2src_bytes
                         content["src2dst_bytes"] = src2dst_bytes
                         mongo_client.update_one(mongo_index, [{"domain": domain,"source_ip":host_a_name}, content])
         except Exception,e:
-            print e
+            msg = traceback.format_exc()
+            print msg
+
+    def search_domain_classtype(self,domain):
+        import domain_class
+        import difflib
+        for key, value in domain_class.domain_classtype.items():
+            similar = float(difflib.SequenceMatcher(None, key, domain).quick_ratio())
+            if similar - float(0.80) >= 0:
+                return key, value
+        return "", ""
+
+
+    def mongodb_size_(self,passive_cfg,collect_name):
+        try:
+            mongo_db = passive_cfg.get("mongo_db")
+            if not mongo_db:
+                return False
+            mongo_path = mongo_db.get("path")
+            mongo_port = mongo_db.get("port")
+            mongo_index = str(mongo_db.get("index")) + collect_name
+            mongo_database = mongo_db.get("database")
+            mongo_client = Mongoclass(mongo_path, int(mongo_port), mongo_database)
+            mongo_size = mongo_client.find(mongo_index,{}).count()
+            if mongo_size > 10000:
+                return False
+            else:
+                return True
+        except Exception,e:
+            msg = traceback.format_exc()
+            print msg
+            return False
+
+
+
 
     def timestramp2time(self,timestramp):
         timeArray = time.localtime(float(timestramp))
         otherStyleTime = time.strftime("%Y-%m-%d %H:%M:%S", timeArray)
         return otherStyleTime
+
+
+    def flow_counter_model(self,flowcount,ACTIONS):
+        # mongo_db = passive_cfg.get("mongo_db")
+        # if not mongo_db:
+        #     return False
+        # mongo_path = mongo_db.get("path")
+        # mongo_port = mongo_db.get("port")
+        # mongo_index = str(mongo_db.get("index")) + "flowcounter"
+        # mongo_database = mongo_db.get("database")
+        # mongo_client = Mongoclass(mongo_path, int(mongo_port), mongo_database)
+        # if not mongo_client.get_state():
+        #     return False
+        s2c_bytes_all = 0
+        c2s_bytes_all = 0
+        s2c_packets_all=0
+        c2s_packets_all=0
+        for action in  ACTIONS:
+            # src_content ={}
+            # dest_content ={}
+            flow  = action.get("_source",{})
+            s_to_c_pkts = int(flow.get("src2dst_packets",0))
+            s_to_c_bytes = float(flow.get("dst2src_bytes",0))
+            # s_to_c_goodput_bytes = flow.get("s_to_c_goodput_bytes")
+            c_to_s_pkts = int(flow.get("dst2src_packets",0))
+            c_to_s_bytes = float(flow.get("src2dst_bytes",0))
+            # c_to_s_goodput_bytes = flow.get("c_to_s_goodput_bytes")
+            # s_to_c_goodput_bytes_radio = flow.get("s_to_c_goodput_bytes_radio")
+            # c_to_s_goodput_bytes_radio = flow.get("c_to_s_goodput_bytes_radio")
+            last_seen =flow.get("last_seen","")
+            src_ip = flow.get("host_a_name","")
+            dest_ip =flow.get("host_b_name","")
+            print src_ip,"",dest_ip
+            protocol_name = flow.get("detected_protocol_name","")
+            event_name = flow.get("device_type","")
+            vlan =flow.get("vlan","")
+            s2c_bytes_all += s_to_c_bytes
+            c2s_bytes_all += c_to_s_bytes
+            s2c_packets_all += s_to_c_pkts
+            c2s_packets_all += c_to_s_pkts
+            # self.count_by_ip(mongo_client, mongo_index, src_ip, s_to_c_bytes, c_to_s_bytes)
+            # self.count_by_ip(mongo_client, mongo_index, dest_ip, c_to_s_bytes,s_to_c_bytes)
+            # self.count_by_tag(mongo_client,mongo_index,"ipaddr",src_ip,s_to_c_bytes,c_to_s_bytes,last_seen)
+            # self.count_by_tag(mongo_client, mongo_index, "ipaddr", dest_ip,c_to_s_bytes ,s_to_c_bytes, last_seen)
+            #"ipaddr","protocol","event","vlan"
+            flowcount.get_data_from_flow("ipaddr",src_ip,s_to_c_bytes,c_to_s_bytes,last_seen,s_to_c_pkts,c_to_s_pkts)
+            flowcount.get_data_from_flow("ipaddr", dest_ip, c_to_s_bytes ,s_to_c_bytes, last_seen,s_to_c_pkts,c_to_s_pkts)
+            flowcount.get_data_from_flow("protocol",protocol_name, c_to_s_bytes ,s_to_c_bytes, last_seen,s_to_c_pkts,c_to_s_pkts)
+            flowcount.get_data_from_flow("vlan", vlan, c_to_s_bytes, s_to_c_bytes, last_seen, s_to_c_pkts,c_to_s_pkts)
+            flowcount.get_data_from_flow("event", event_name, c_to_s_bytes, s_to_c_bytes, last_seen, s_to_c_pkts, c_to_s_pkts)
+        flowcount.get_data_from_flow("all", "", c2s_bytes_all, s2c_bytes_all, last_seen, s2c_packets_all,c2s_packets_all)
+
+
+
+
+        # self.all_bytes_counter(mongo_client,mongo_index,s2c_bytes_all,c2s_bytes_all)
+
+
+
+    # def bytes_anlysis(self,s_to_c_pkts,s_to_c_bytes,s_to_c_goodput_bytes):
+    #     s_to_c_goodput_bytes_radio = s_to_c_goodput_bytes/s_to_c_bytes
+
+    def all_bytes_counter(self,mongo_client,mongo_index,s2c_bytes_all,c2s_bytes_all,last_seen):
+        filter={
+            "tag":"all",
+        }
+        all_bytes_data = mongo_client.find(mongo_index,filter)
+        bytes_all = s2c_bytes_all+c2s_bytes_all,
+        if all_bytes_data.count()<1:
+            content = {
+                "tag": "all",
+                "bytes":bytes_all,
+                "s2c_bytes_all":s2c_bytes_all,
+                "c2s_bytes_all":c2s_bytes_all,
+                "last_seen" : last_seen
+            }
+            mongo_client.insert_one(mongo_index,content)
+        else:
+            for content in all_bytes_data:
+                s2c_bytes_all += float(content.get("s2c_bytes_all"))
+                c2s_bytes_all += float(content.get("c2s_bytes_all"))
+                bytes_all +=  float(content.get("bytes_all"))
+            content = {
+                "tag": "all",
+                "bytes": bytes_all,
+                "s2c_bytes_all": s2c_bytes_all,
+                "c2s_bytes_all": c2s_bytes_all,
+                "last_seen": last_seen
+            }
+            if all_bytes_data.count()>1:
+                mongo_client.delete(mongo_index,{"tag": "all",})
+            mongo_client.update(mongo_index,[{"tag": "all",},content])
+
+
+    def count_by_tag(self,mongo_client,mongo_index,tag,object,s2c_bytes,c2s_bytes,last_seen):
+        try:
+            if tag not in ["ipaddr","protocol","event","vlan"]:
+                return False
+            filter = {
+                "tag": tag,
+                "object":object,
+            }
+            bytes_ipaddr = s2c_bytes+ c2s_bytes
+            mongo_client_filter = mongo_client.find(mongo_index,filter)
+            if mongo_client_filter.count() < 1:
+                content = {
+                    "tag": tag,
+                    "object": object,
+                    "bytes": bytes_ipaddr,
+                    "s2c_bytes": s2c_bytes,
+                    "c2s_bytes": c2s_bytes,
+                    "last_seen": last_seen
+                }
+                mongo_client.insert_one(mongo_index, content)
+            else:
+                for content in mongo_client_filter:
+                    s2c_bytes += float(content.get("s2c_bytes"))
+                    c2s_bytes += float(content.get("c2s_bytes"))
+                    bytes_ipaddr += float(content.get("bytes_ipaddr"))
+                content = {
+                    "tag": tag,
+                    "object": object,
+                    "bytes": bytes_ipaddr,
+                    "s2c_bytes": s2c_bytes,
+                    "c2s_bytes": c2s_bytes,
+                    "last_seen": last_seen
+                }
+                if mongo_client_filter.count() > 1:
+                    mongo_client.delete(mongo_index,{"tag": tag,"object": object})
+                    mongo_client.insert_one(mongo_index, content)
+                mongo_client.update(mongo_index, [{"tag": tag,"object": object}, content])
+            return True
+        except Exception,e:
+            msg = traceback.format_exc()
+            print msg
+            return False
+
+    # def count_by_app_protocol(self,mongo_client,mongo_index,detected_protocol_name,s2c_bytes,c2s_bytes,last_seen):
+    #     filter = {
+    #         "tag": "protocol",
+    #         "object":detected_protocol_name,
+    #     }
+    #     bytes_ipaddr = s2c_bytes+ c2s_bytes
+    #     count_by_protocol_name = mongo_client.find(mongo_index,filter)
+    #     if count_by_protocol_name.count() < 1:
+    #         content = {
+    #             "tag": "protocol",
+    #             "object": detected_protocol_name,
+    #             "bytes": bytes_ipaddr,
+    #             "s2c_bytes": s2c_bytes,
+    #             "c2s_bytes": c2s_bytes,
+    #             "last_seen": last_seen
+    #         }
+    #         mongo_client.insert_one(mongo_index, content)
+    #     else:
+    #         for content in count_by_protocol_name:
+    #             s2c_bytes += float(content.get("s2c_bytes"))
+    #             c2s_bytes += float(content.get("c2s_bytes"))
+    #             bytes_ipaddr += float(content.get("bytes_ipaddr"))
+    #         content = {
+    #             "tag": "protocol",
+    #             "object":detected_protocol_name,
+    #             "bytes": bytes_ipaddr,
+    #             "s2c_bytes": s2c_bytes,
+    #             "c2s_bytes": c2s_bytes,
+    #             "last_seen": last_seen
+    #         }
+    #         if count_by_protocol_name.count() > 1:
+    #             mongo_client.delete(mongo_index,{ "tag": "protocol_name","object":detected_protocol_name})
+    #         mongo_client.update(mongo_index, [{ "tag": "protocol_name","object":detected_protocol_name}, content])
+    #
+    #
+    # def count_by_event_name(self,mongo_client,mongo_index,event_name,s2c_bytes,c2s_bytes,last_seen):
+    #     filter = {
+    #         "tag": "event",
+    #         "object":event_name,
+    #     }
+    #     bytes_ipaddr = s2c_bytes+ c2s_bytes
+    #     count_by_event_name = mongo_client.find(mongo_index,filter)
+    #     if count_by_event_name.count() < 1:
+    #         content = {
+    #             "tag": "event",
+    #             "object": event_name,
+    #             "bytes": bytes_ipaddr,
+    #             "s2c_bytes": s2c_bytes,
+    #             "c2s_bytes": c2s_bytes,
+    #             "last_seen": last_seen
+    #         }
+    #         mongo_client.insert_one(mongo_index, content)
+    #     else:
+    #         for content in count_by_event_name:
+    #             s2c_bytes += float(content.get("s2c_bytes"))
+    #             c2s_bytes += float(content.get("c2s_bytes"))
+    #             bytes_ipaddr += float(content.get("bytes_ipaddr"))
+    #         content = {
+    #             "tag": "event",
+    #             "object":event_name,
+    #             "bytes": bytes_ipaddr,
+    #             "s2c_bytes": s2c_bytes,
+    #             "c2s_bytes": c2s_bytes,
+    #             "last_seen": last_seen
+    #         }
+    #         if count_by_event_name.count() > 1:
+    #             mongo_client.delete(mongo_index,{ "tag": "event","object":event_name})
+    #         mongo_client.update(mongo_index, [{ "tag": "event","object":event_name}, content])
+    #
+    #
+    # def count_by_vlan_name(self,mongo_client,mongo_index,tag,vlan_name,s2c_bytes,c2s_bytes,last_seen):
+    #     filter = {
+    #         "tag": "vlan",
+    #         "object":vlan_name,
+    #     }
+    #     bytes_ipaddr = s2c_bytes+ c2s_bytes
+    #     count_by_event_name = mongo_client.find(mongo_index,filter)
+    #     if count_by_event_name.count() < 1:
+    #         content = {
+    #             "tag": "vlan",
+    #             "object": vlan_name,
+    #             "bytes": bytes_ipaddr,
+    #             "s2c_bytes": s2c_bytes,
+    #             "c2s_bytes": c2s_bytes,
+    #             "last_seen": last_seen
+    #         }
+    #         mongo_client.insert_one(mongo_index, content)
+    #     else:
+    #         for content in count_by_event_name:
+    #             s2c_bytes += float(content.get("s2c_bytes"))
+    #             c2s_bytes += float(content.get("c2s_bytes"))
+    #             bytes_ipaddr += float(content.get("bytes_ipaddr"))
+    #         content = {
+    #             "tag": "vlan",
+    #             "object":vlan_name,
+    #             "bytes": bytes_ipaddr,
+    #             "s2c_bytes": s2c_bytes,
+    #             "c2s_bytes": c2s_bytes,
+    #             "last_seen": last_seen
+    #         }
+    #         if count_by_event_name.count() > 1:
+    #             mongo_client.delete(mongo_index,{ "tag": "vlan","object":vlan_name})
+    #         mongo_client.update(mongo_index, [{ "tag": "vlan","object":vlan_name}, content])
+
 
 
