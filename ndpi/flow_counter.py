@@ -49,7 +49,7 @@ class FlowCounter():
 
     def get_data_from_flow(self,tag,object_name,s2c,c2s,last_seen,s_to_c_pkts,c_to_s_pkts):
         try:
-            if tag not in ["all","ipaddr","protocol","event","vlan"]:
+            if tag not in ["all","ipaddr","protocol","event","vlan","last_seen"]:
                 return False
             if tag != "all":
                 if not object_name:
@@ -73,7 +73,7 @@ class FlowCounter():
                     "bytes": bytes,
                     "s2c_bytes": s2c_bytes,
                     "c2s_bytes": c2s_bytes,
-                    "last_seen": last_seen,
+                    "date": last_seen,
                     "s2c_packets":s_to_c_pkts,
                     "c2s_packets": c_to_s_pkts
                 }
@@ -94,7 +94,7 @@ class FlowCounter():
                     "bytes": bytes,
                     "s2c_bytes": s2c_bytes,
                     "c2s_bytes": c2s_bytes,
-                    "last_seen": last_seen,
+                    "date": last_seen,
                     "s2c_packets": s_to_c_pkts,
                     "c2s_packets": c_to_s_pkts
                 }
@@ -146,7 +146,7 @@ class FlowCounter():
                 for content in self.wait_update:
                     try:
                         tag = content.get("tag","")
-                        if tag not in ["all","ipaddr","protocol","event","vlan"]:
+                        if tag not in ["all","ipaddr","protocol","event","vlan","last_seen"]:
                             continue
                         if tag == "all":
                             condition={"tag":"all"}
@@ -163,7 +163,7 @@ class FlowCounter():
                 try:
                     for content in self.wait_insert:
                         tag = content.get("tag", "")
-                        if tag not in ["all", "ipaddr", "protocol", "event", "vlan"]:
+                        if tag not in ["all", "ipaddr", "protocol", "event", "vlan","last_seen"]:
                             self.wait_insert.remove(content)
                             continue
                     if len(self.wait_insert)>0:

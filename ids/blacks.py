@@ -176,23 +176,23 @@ class Blackdomain():
                 sidindex+=1
                 if rew.get("type") == 0:
                     data = '''alert dns any any -> any any (msg:"黑链接"; dns_query; content:"''' + rew.get(
-                        "content") + '''"; nocase;endswith; classtype: ''' + rew.get(
-                        "classtype") + '''; metadata: former_category; sid: ''' + str(
-                        sidindex) + '''; rev:1;metadata:created_at ''' + rew.get("create_time") + '''; )\n'''
+                        "content") + '''"; nocase;endswith; classtype:''' + rew.get(
+                        "classtype") + '''; metadata: former_category; sid:''' + str(
+                        sidindex) + '''; rev:1;metadata:created_at''' + rew.get("create_time") + '''; )\n'''
                 elif rew.get("type") == 1:
                     data = '''alert http any any -> any any (msg:"黑链接"; flow:to_server,established; content:"''' + rew.get(
-                        "content") + '''" ;http_header; classtype: ''' + rew.get("classtype") + ''';sid: ''' + str(
+                        "content") + '''" ;http_header; classtype:''' + rew.get("classtype") + ''';sid:''' + str(
                         sidindex) + '''; rev:1; metadata: black_link, created_at ''' + rew.get(
                         "create_time") + ''';)\n'''
                 elif rew.get("type") == 2:
                     data = '''alert http any any -> any any (msg:"黑链接"; flow:to_server,established; content:"''' + rew.get(
-                        "content") + '''" ;http_uri;fast_pattern; classtype: ''' + rew.get(
-                        "classtype") + ''';sid: ''' + str(
-                        sidindex) + '''; rev:1; metadata: black_link, created_at ''' + rew.get(
+                        "content") + '''" ;http_uri;fast_pattern; classtype:''' + rew.get(
+                        "classtype") + ''';sid:''' + str(
+                        sidindex) + '''; rev:1; metadata: black_link, created_at''' + rew.get(
                         "create_time") + ''';)\n'''
                 elif rew.get("type") == 3:
-                    data = '''alert http any any -> any any (msg:"黑链接"; flow:to_server,established; http_referer; content:"''' + rew.get(
-                        "content") + '''" ; classtype: ''' + rew.get("classtype") + ''';sid: ''' + str(
+                    data = '''alert http any any -> any any (msg:"黑链接"; flow:to_server,established;http_referer; content:"''' + rew.get(
+                        "content") + '''" ; classtype:''' + rew.get("classtype") + ''';sid:''' + str(
                         sidindex) + '''; rev:1; metadata: black_link, created_at ''' + rew.get(
                         "create_time") + ''';)\n'''
                 results.append(data)

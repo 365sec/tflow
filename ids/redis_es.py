@@ -49,21 +49,21 @@ class Suricata_es:
         :param cfg:
         :return:
         '''
-        instrusion_cfg = cfg.get("instrusion_cfg")
-        mongo_db = instrusion_cfg.get("mongo_db")
-        if not mongo_db:
-            return False
-        mongo_path = mongo_db.get("path")
-        mongo_port = mongo_db.get("port")
-        mongo_database = mongo_db.get("database")
-        mongo_index = mongo_db.get("index")
-        mongo_index_sign = str(mongo_db.get("index")) + "sign"
-        mongo_index_event = str(mongo_db.get("index")) + "event"
-        mongo_client = mongoclass.Mongoclass(mongo_path, int(mongo_port), mongo_database)
-        if not mongo_client.get_state():
-            return False
         for action in ACTIONS:
             try:
+                instrusion_cfg = cfg.get("instrusion_cfg")
+                mongo_db = instrusion_cfg.get("mongo_db")
+                if not mongo_db:
+                    return False
+                mongo_path = mongo_db.get("path")
+                mongo_port = mongo_db.get("port")
+                mongo_database = mongo_db.get("database")
+                mongo_index = mongo_db.get("index")
+                mongo_index_sign = str(mongo_db.get("index"))+"sign"
+                mongo_index_event= str(mongo_db.get("index"))+"event"
+                mongo_client = mongoclass.Mongoclass(mongo_path, int(mongo_port), mongo_database)
+                if not mongo_client.get_state():
+                    return False
                 event = action.get("_source")
                 if event:
                     alert = event.get("alert")

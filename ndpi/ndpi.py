@@ -16,6 +16,7 @@ import hashlib
 import os
 import geoip2.database
 import IPy
+import timecycle
 import firms
 import netcard_name, IPdivide
 from mongoclass import Mongoclass
@@ -600,12 +601,15 @@ class Passiveasset:
             # self.count_by_tag(mongo_client,mongo_index,"ipaddr",src_ip,s_to_c_bytes,c_to_s_bytes,last_seen)
             # self.count_by_tag(mongo_client, mongo_index, "ipaddr", dest_ip,c_to_s_bytes ,s_to_c_bytes, last_seen)
             #"ipaddr","protocol","event","vlan"
-            flowcount.get_data_from_flow("ipaddr",src_ip,s_to_c_bytes,c_to_s_bytes,last_seen,s_to_c_pkts,c_to_s_pkts)
-            flowcount.get_data_from_flow("ipaddr", dest_ip, c_to_s_bytes ,s_to_c_bytes, last_seen,s_to_c_pkts,c_to_s_pkts)
-            flowcount.get_data_from_flow("protocol",protocol_name, c_to_s_bytes ,s_to_c_bytes, last_seen,s_to_c_pkts,c_to_s_pkts)
-            flowcount.get_data_from_flow("vlan", vlan, c_to_s_bytes, s_to_c_bytes, last_seen, s_to_c_pkts,c_to_s_pkts)
-            flowcount.get_data_from_flow("event", event_name, c_to_s_bytes, s_to_c_bytes, last_seen, s_to_c_pkts, c_to_s_pkts)
-        flowcount.get_data_from_flow("all", "", c2s_bytes_all, s2c_bytes_all, last_seen, s2c_packets_all,c2s_packets_all)
+            flowcount.get_data_from_flow("ipaddr",src_ip,s_to_c_bytes,c_to_s_bytes,timecycle.str_time_to_Mtime(last_seen),s_to_c_pkts,c_to_s_pkts)
+            flowcount.get_data_from_flow("ipaddr", dest_ip, c_to_s_bytes ,s_to_c_bytes, timecycle.str_time_to_Mtime(last_seen),s_to_c_pkts,c_to_s_pkts)
+            flowcount.get_data_from_flow("protocol",protocol_name, c_to_s_bytes ,s_to_c_bytes, timecycle.str_time_to_Mtime(last_seen),s_to_c_pkts,c_to_s_pkts)
+            flowcount.get_data_from_flow("vlan", vlan, c_to_s_bytes, s_to_c_bytes, last_seen, timecycle.str_time_to_Mtime(last_seen),c_to_s_pkts)
+            flowcount.get_data_from_flow("event", event_name, c_to_s_bytes, s_to_c_bytes, timecycle.str_time_to_Mtime(last_seen), s_to_c_pkts, c_to_s_pkts)
+
+            flowcount.get_data_from_flow("last_seen", timecycle.str_time_to_day(last_seen), c_to_s_bytes, s_to_c_bytes, timecycle.str_time_to_Mtime(last_seen), s_to_c_pkts,c_to_s_pkts)
+            print timecycle.str_time_to_day(last_seen),timecycle.str_time_to_Mtime(last_seen)
+        flowcount.get_data_from_flow("all", "", c2s_bytes_all, s2c_bytes_all, timecycle.str_time_to_Mtime(last_seen), s2c_packets_all,c2s_packets_all)
 
 
 
