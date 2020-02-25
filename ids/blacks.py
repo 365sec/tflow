@@ -133,11 +133,15 @@ class Blackdomain():
             domains=[]
             for data in total_data:
                 rew={}
-                domain = data.get("domain","")
+                content = data.get("domain","")
                 classtype = data.get("reason","")
-                if blackdomain and classtype:
-                    rew["domain"]=domain
+                block_type=int(data.get("type"))
+                create_time = data.get("create_time")
+                if content and classtype and block_type in range(-1,4):
+                    rew["content"]=content
                     rew["classtype"] = classtype
+                    rew["type"]=block_type
+                    rew["create_time"]=create_time
                     domains.append(rew)
             return  domains
         except Exception,e:
@@ -170,7 +174,27 @@ class Blackdomain():
             sidindex=7700000
             for rew in blackdomain:
                 sidindex+=1
-                data = '''alert dns any any -> any any (msg:"黑域名"; dns_query; content:"'''+rew.get("domain")+'''"; nocase;endswith; classtype:'''+rew.get("classtype")+'''; metadata: former_category; sid:'''+str(sidindex)+'''; rev:1;metadata:created_at 2018_09_19; )\n'''
+                if rew.get("type") == 0:
+                    data = '''alert dns any any -> any any (msg:"黑链接"; dns_query; content:"''' + rew.get(
+                        "content") + '''"; nocase;endswith; classtype:''' + rew.get(
+                        "classtype") + '''; metadata: former_category; sid:''' + str(
+                        sidindex) + '''; rev:1;metadata:created_at''' + rew.get("create_time") + '''; )\n'''
+                elif rew.get("type") == 1:
+                    data = '''alert http any any -> any any (msg:"黑链接"; flow:to_server,established; content:"''' + rew.get(
+                        "content") + '''" ;http_header; classtype:''' + rew.get("classtype") + ''';sid:''' + str(
+                        sidindex) + '''; rev:1; metadata: black_link, created_at ''' + rew.get(
+                        "create_time") + ''';)\n'''
+                elif rew.get("type") == 2:
+                    data = '''alert http any any -> any any (msg:"黑链接"; flow:to_server,established; content:"''' + rew.get(
+                        "content") + '''" ;http_uri;fast_pattern; classtype:''' + rew.get(
+                        "classtype") + ''';sid:''' + str(
+                        sidindex) + '''; rev:1; metadata: black_link, created_at''' + rew.get(
+                        "create_time") + ''';)\n'''
+                elif rew.get("type") == 3:
+                    data = '''alert http any any -> any any (msg:"黑链接"; flow:to_server,established;http_referer; content:"''' + rew.get(
+                        "content") + '''" ; classtype:''' + rew.get("classtype") + ''';sid:''' + str(
+                        sidindex) + '''; rev:1; metadata: black_link, created_at ''' + rew.get(
+                        "create_time") + ''';)\n'''
                 results.append(data)
             return True,results
         except Exception,e:
