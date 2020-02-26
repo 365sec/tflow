@@ -4,9 +4,11 @@ import threading
 import time
 import uuid
 import copy
-from ndpi import ndpi
-from ids import redis_es
+from passive import asset
+from ids import instrusion
+from flow_assets.logcfg import logger as flow_log
 import logging
+# logger = logging.getLogger('tapp_flow')
 
 class Scheduler(threading.Thread):
 
@@ -19,7 +21,7 @@ class Scheduler(threading.Thread):
         taskid = str(uuid.uuid4())
         task={"taskid":taskid,"cfg":cfg,"status":0}
         self.tasklist.append(task)
-        logging.info('createtask running ' + str(task))
+        flow_log.info('createtask running ' + str(task))
         return taskid
 
     def taskinfo(self,taskid):
@@ -40,10 +42,10 @@ class Scheduler(threading.Thread):
             print 'delete__________'
             print self.tasklist[index]
             if 'passive' in self.tasklist[index].get('cfg').get("task_type"):
-                pa = ndpi.Passiveasset(self.tasklist[index])
+                pa = asset.PassiveAsset(self.tasklist[index])
                 pa.stop()
             elif  'suricata' in self.tasklist[index].get('cfg').get("task_type"):
-                su = redis_es.Suricata_es(self.tasklist[index])
+                su = instrusion.IdsInstrusion(self.tasklist[index])
                 su.stop()
             del self.tasklist[index]
             return True
@@ -66,27 +68,27 @@ class Scheduler(threading.Thread):
                     task["status"] = 1
                     cfg =task.get("cfg")
                     if 'passive' in cfg.get("task_type"):
-                        pa = ndpi.Passiveasset(task)
+                        pa = asset.PassiveAsset(task)
                         pa.run()
                     elif 'suricata' in cfg.get("task_type"):
-                        su = redis_es.Suricata_es(task)
+                        su = instrusion.IdsInstrusion(task)
                         su.run()
-                    logging.info('task running ' + str(task))
+                    flow_log.info('task running ' + str(task))
             time.sleep(6)
 
 
 scheduler=Scheduler()
-logging.info(id(scheduler))
+flow_log.info(id(scheduler))
 #print scheduler
 
 def get_scheduler():
-    logging.info(id(scheduler))
+    flow_log.info(id(scheduler))
     return scheduler
 
 def init_scheduler():
-    logging.info("init_scheduler  start ...")
+    flow_log.info("init_scheduler  start ...")
     scheduler.start()
-    logging.info(id(scheduler))
+    flow_log.info(id(scheduler))
     print id(scheduler)
 
 
@@ -99,6 +101,3 @@ if __name__ == "__main__":
     cfg = {"host": "172.16.39.15", "port": 22, "username": "root", "pwd": "www.365sec.com", "folder": ""}
     sc.createtask(cfg)
     sc.join()
-
-
-    print "ccc"
