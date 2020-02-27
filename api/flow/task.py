@@ -4,22 +4,22 @@ from flask import request
 import os
 import sys
 from flow_assets.scheduler import get_scheduler
-import logging
+# import flow_log
 import json
 import paramiko
 task_namespace = Namespace("task", description="Endpoint to retrieve task")
-logger = logging.getLogger('tapp_flow')
+from flow_assets.logcfg  import logger as flow_log
 @task_namespace.route('/start')
 class Create(Resource):
     def get(self):
         sc = get_scheduler()
-        logger.info("create")
-        logger.info(id(sc))
+        flow_log.info("create")
+        flow_log.info(id(sc))
         return {"get": "hello world"}
     def post(self):
         try:
             sc = get_scheduler()
-            logging.info("post create")
+            flow_log.info("post create")
             cfg = json.loads(request.data)
             # cfg={
             #     "vlan": "sqlinject.pcapng",  # 可设置网卡ens192，离线pcap包路径
@@ -36,26 +36,26 @@ class Create(Resource):
 #            if  cfg.get("path",None) == None:
 #                return {"success": False, "msg": "es IP地址 不能为空"}
             if cfg.get("vlan",None) == None:
-                logger.debug("vlan 不能为空")
+                flow_log.debug("vlan 不能为空")
                 return {"success": False, "msg": "vlan 不能为空"}
             if cfg.get("path", None) == None:
-                logger.debug("path 不能为空")
+                flow_log.debug("path 不能为空")
                 return {"success": False, "msg": "path 不能为空"}
             task_type = cfg.get("task_type", None)
             if task_type  == None:
-                logger.debug("任务类型 错误")
+                flow_log.debug("任务类型 错误")
                 return {"success": False, "msg": "任务类型  不能为空"}
             else:
                 if task_type not in ["passive_vlan", "suricata_vlan","passive_pcap", "suricata_pcap"]:
-                    logger.debug("任务类型  不能为空")
+                    flow_log.debug("任务类型  不能为空")
                     return {"success": False, "msg": "任务类型 错误"}
                 if  task_type == "passive_pcap" or task_type =="suricata_pcap":
                     if cfg.get("path", "") == "":
-                        logger.debug("pcap路径不能为空")
+                        flow_log.debug("pcap路径不能为空")
                         return {"success": False, "msg": "pcap路径不能为空 "}
                 if  task_type == "passive_vlan" or task_type =="suricata_vlan":
                     if cfg.get("vlan", "") == "":
-                        logger.debug("pcap路径不能为空")
+                        flow_log.debug("pcap路径不能为空")
                         return {"success": False, "msg": "vlan路径不能为空"}
             type = cfg.get("task_type")
             for task in sc.tasklist:
@@ -63,23 +63,23 @@ class Create(Resource):
                 task_typex = task_cfg.get("task_type")
                 status = task.get("status")
                 if "suricata" in type and "suricata" in task_typex and status in [0,1]:
-                    logger.debug("重复下发任务")
+                    flow_log.debug("重复下发任务")
                     return {"success": False, "msg": "重复下发任务"}
                 if "passive" in type and "passive" in task_typex and status in [0,1]:
-                    logger.debug("重复下发任务")
+                    flow_log.debug("重复下发任务")
                     return {"success": False, "msg": "重复下发任务"}
                 # if "passive" in type and "suricata" in task_typex and status in [0,1]:
-                #     logger.debug("已存在入侵检测任务")
+                #     flow_log.debug("已存在入侵检测任务")
                 #     return {"success": False, "msg": "已存在入侵检测任务"}
                 # if "suricata" in type and "passive" in task_typex and status in [0,1]:
-                #     logger.debug("已存在流量分析任务")
+                #     flow_log.debug("已存在流量分析任务")
                 #     return {"success": False, "msg": "已存在流量分析任务"}
             taskid = sc.createtask(cfg)
-            logger.debug("成功下发任务")
+            flow_log.debug("成功下发任务")
             return   {"success": True,"taskid":taskid, "msg": "成功下发任务"}
         except Exception as e:
             print  {"success": False,"msg": str(e)}
-            logging.error(str(e))
+            flow_log.error(str(e))
         return {"success": False,"msg":""}
 
 
@@ -89,14 +89,14 @@ class Create(Resource):
 # class Create(Resource):
 #     def get(self):
 #         sc = get_scheduler()
-#         logging.info("create")
-#         logging.info(id(sc))
+#         flow_log.info("create")
+#         flow_log.info(id(sc))
 #         return {"get": "hello world"}
 #
 #     def post(self):
 #         try:
 #             sc = get_scheduler()
-#             logging.info("post create")
+#             flow_log.info("post create")
 #             cfg = json.loads(request.data)
 #             if cfg.get("host",None) == None:
 #                 return {"success": False, "msg": "host 不能为空"}
@@ -128,15 +128,15 @@ class Create(Resource):
 class Status(Resource):
     def get(self):
         sc = get_scheduler()
-        logging.info("create")
-        logging.info(id(sc))
+        flow_log.info("status")
+        flow_log.info(id(sc))
         return {"get": "hello world"}
 
     def post(self):
         try:
             sc = get_scheduler()
             cfg = json.loads(request.data)
-            logging.info("post create")
+            flow_log.info("post status")
             taskid = cfg.get("taskid",None)
             if not taskid :
                 # print '===='
@@ -166,14 +166,14 @@ class Status(Resource):
 # class Delete(Resource):
 #     def get(self):
 #         sc = get_scheduler()
-#         logging.info("create")
-#         logging.info(id(sc))
+#         flow_log.info("create")
+#         flow_log.info(id(sc))
 #         return {"get": "hello world"}
 #
 #     def post(self):
 #         try:
 #             sc = get_scheduler()
-#             logging.info("post create")
+#             flow_log.info("post create")
 #             cfg = json.loads(request.data)
 #             taskid = cfg.get("taskid", None)
 #             if taskid != None :
@@ -191,13 +191,13 @@ class Status(Resource):
 class Delete(Resource):
     def get(self):
         sc = get_scheduler()
-        logging.info("create")
-        logging.info(id(sc))
+        flow_log.info("del")
+        flow_log.info(id(sc))
         return {"get": "hello world"}
     def post(self):
         try:
             sc = get_scheduler()
-            logging.info("post create")
+            flow_log.info("post del task")
             cfg = json.loads(request.data)
             print cfg
             taskid = cfg.get("taskid", None)

@@ -1,6 +1,6 @@
 #ecoding:utf-8
 import re
-import mongoclass
+from flow_assets.tools import mongoclass
 import os
 import sys
 reload(sys)

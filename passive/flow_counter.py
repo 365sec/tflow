@@ -1,8 +1,8 @@
 #ecoding:utf-8
 import time
 import traceback
-
-import mongoclass
+from flow_assets import logcfg as flow_log
+from flow_assets.tools import mongoclass
 
 class FlowCounter():
     def __init__(self,passive_cfg):
@@ -15,8 +15,8 @@ class FlowCounter():
         self.status = 0
         self.passive_cfg = passive_cfg
         status,length = self.read_flow_from_db()
-        print status,"成功加载"+str(length)
-        print "init successfully!"
+        print (status,"成功加载"+str(length))
+        print ("init successfully!")
         self.status =1
         self.sleep_time = 10 #刷库时间,秒
 
@@ -32,6 +32,10 @@ class FlowCounter():
             mongo_database = mongo_db.get("database")
             mongo_client = mongoclass.Mongoclass(mongo_path, int(mongo_port), mongo_database)
             if not mongo_client.get_state():
+                flow_log.logger.debug("mongo 数据库连接失败")
+                return False
+            if not mongo_client.mongodb_size_count(mongo_index,{}):
+                flow_log.logger.debug("mongo 数据库数据量限制")
                 return False
             all_data = mongo_client.find(mongo_index,{})
             for data in all_data:
@@ -44,7 +48,7 @@ class FlowCounter():
             return True,len(self.flow_all)
         except Exception,e:
             msg = traceback.format_exc()
-            print msg
+            flow_log.logger.debug(msg)
             return True,0
 
     def get_data_from_flow(self,tag,object_name,s2c,c2s,last_seen,s_to_c_pkts,c_to_s_pkts):
@@ -62,7 +66,6 @@ class FlowCounter():
             # mongo_client_filter = mongo_client.find(mongo_index,filter)
             result_list=[]
             result_list = self.find_data_in_list(self.flow_all, tag, object_name)
-            #print len(result_list)
             s2c_bytes = float(s2c)
             c2s_bytes = float(c2s)
             bytes = s2c_bytes + c2s_bytes
@@ -117,14 +120,14 @@ class FlowCounter():
             #     self.flow_vlan= operate_list
         except Exception,e:
             msg = traceback.format_exc()
-            print msg
+            flow_log.logger.debug(msg)
 
     def find_data_in_list(self,list,tag,object_name):
         try:
             return filter(lambda content: content.get("tag","")==tag and  content.get("object","")==object_name , list)
         except:
             msg = traceback.format_exc()
-            print msg
+            flow_log.logger.debug(msg)
             return []
 
 
@@ -134,7 +137,7 @@ class FlowCounter():
                 time.sleep(self.sleep_time)
                 mongo_db = self.passive_cfg.get("mongo_db","")
                 if not mongo_db:
-                    print "no db"
+                    flow_log.logger.debug("mongo 数据库连接失败")
                     continue
                 mongo_path = mongo_db.get("path")
                 mongo_port = mongo_db.get("port")
@@ -142,7 +145,11 @@ class FlowCounter():
                 mongo_database = mongo_db.get("database")
                 mongo_client = mongoclass.Mongoclass(mongo_path, int(mongo_port), mongo_database)
                 if not mongo_client.get_state():
-                    print "db error"
+                    flow_log.logger.debug("mongo 数据库连接失败")
+                    continue
+                if not mongo_client.mongodb_size_count(mongo_index,{}):
+                    flow_log.logger.debug("mongo 数据库数据量限制")
+                    continue
                 for content in self.wait_update:
                     try:
                         tag = content.get("tag","")
@@ -158,7 +165,7 @@ class FlowCounter():
 
                     except:
                         msg = traceback.format_exc()
-                        print msg
+                        flow_log.logger.debug(msg)
 
                 try:
                     for content in self.wait_insert:
@@ -170,12 +177,12 @@ class FlowCounter():
                         mongo_client.insert_many(mongo_index,self.wait_insert)
                 except Exception, e:
                     msg = traceback.format_exc()
-                    print msg
+                    flow_log.logger.debug(msg)
 
                 self.wait_update=[]
                 self.wait_insert=[]
             except Exception, e:
                 msg = traceback.format_exc()
-                print msg
+                flow_log.logger.debug(msg)
 
 
