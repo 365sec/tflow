@@ -1,20 +1,25 @@
-#ecoding:utf-8
+# ecoding:utf-8
 import datetime
 import time
+
 
 def str_time_to_utc(strtime):
     timestamp = datetime.datetime.strptime(strtime, '%Y-%m-%d %H:%M:%S')
     utc_timestamp = timestamp - datetime.timedelta(hours=1)
     return utc_timestamp.strftime('%Y-%m-%dT%H:%M:%S+0800')
 
+
 def str_time_to_Mtime(strtime):
     timestamp = datetime.datetime.strptime(strtime, '%Y-%m-%d %H:%M:%S')
-    return  timestamp
+    return timestamp
     # return timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+
 
 def str_time_to_day(strtime):
     timestamp = datetime.datetime.strptime(strtime, '%Y-%m-%d %H:%M:%S')
     return timestamp.strftime('%Y-%m-%d')
+
+
 # time = "2018-5-9 12:45:52"
 # print str_time_to_Mtime(time)
 
@@ -38,6 +43,6 @@ def getTimeDiff(timeStra, timeStrb):
     days = (dataTimea - dataTimeb).days
     minutesDiff = round(secondsDiff / 60, 1)
     h, m = divmod(minutesDiff, 60)
-    return  ("%02d天%02d小时%02d分钟前" % (days ,h, m))
+    return ("%02d天%02d小时%02d分钟前" % (days, h, m))
 
 # print time.localtime(time.time())

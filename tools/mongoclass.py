@@ -1,10 +1,12 @@
-#ecoding:utf-8
+# ecoding:utf-8
 from pymongo import MongoClient
+
 
 class Mongoclass(object):
     '''
     some mongo tools
     '''
+
     def __init__(self, address, port, database):
         self.conn = MongoClient(host=address, port=port)
         self.db = self.conn[database]
@@ -73,7 +75,6 @@ class Mongoclass(object):
             return self.db[collection].update_one(fileter, {"$set": replace})
         return 0
 
-
     def find(self, col, condition, column=None):
         '''
         数据查找
@@ -104,7 +105,7 @@ class Mongoclass(object):
     def mongodb_size_count(self, col, condition):
         try:
             if self.get_state():
-                mongo_size=self.db[col].find(condition).count()
+                mongo_size = self.db[col].find(condition).count()
                 if mongo_size > 10000:
                     return False
                 else:
@@ -114,10 +115,10 @@ class Mongoclass(object):
         except:
             return False
 # if __name__ == '__main__':
-    # # unit test
-    # import time
-    # import random
-    #
+# # unit test
+# import time
+# import random
+#
 # db = Mongoclass("172.16.39.15", 27017, "passive_flow")
 # print "deleted count: ", db.delete("passive_flow",{"test":1})
 #     # print(db.get_state())
@@ -138,16 +139,16 @@ class Mongoclass(object):
 # print(db.update_one("passive_flow", a11))
 # for data in  db.find("passive_flow", {}):
 #     print data
-    # # print(db.delete("ut", {}))
-    # # print(time.time())
-    # # start_time = int(time.time() * 1e6)
-    # # for i in range(100):
-    # #     t = int(time.time() * 1e6)
-    # #     db.insert_one("ut", {"username": str(t),
-    # #                          "timestamp": t,
-    # #                          "password": "aaaa",
-    # #                          "telephone": str(random.random() * 1000000)})
-    # # print("deleted count: ", db.delete("ut", {"timestamp": {"$gt": start_time + 500}}))
-    # # print(db.find("ut", {}).count())
-    # #
-    # # print(db.find("ut", {}, {"password": 1, "username": 1}).count())
+# # print(db.delete("ut", {}))
+# # print(time.time())
+# # start_time = int(time.time() * 1e6)
+# # for i in range(100):
+# #     t = int(time.time() * 1e6)
+# #     db.insert_one("ut", {"username": str(t),
+# #                          "timestamp": t,
+# #                          "password": "aaaa",
+# #                          "telephone": str(random.random() * 1000000)})
+# # print("deleted count: ", db.delete("ut", {"timestamp": {"$gt": start_time + 500}}))
+# # print(db.find("ut", {}).count())
+# #
+# # print(db.find("ut", {}, {"password": 1, "username": 1}).count())

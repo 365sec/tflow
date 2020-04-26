@@ -1,4 +1,5 @@
 import logging
+
 logger = logging.getLogger('tapp_flow')
 log_filename = "flow_assets.log"
 logging.basicConfig(filename=log_filename, level=logging.DEBUG,

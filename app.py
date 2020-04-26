@@ -1,10 +1,9 @@
-from flask import Flask, Request
-from flask import Blueprint
-from scheduler import init_scheduler
-from api import api
 import logging
 
+from flask import Flask
 
+from api import api
+from scheduler import init_scheduler
 
 
 def create_app():
@@ -21,7 +20,7 @@ def create_app():
     app.register_blueprint(api)
 
     init_scheduler()
-    app.run(debug=False,host='0.0.0.0',port=5050)
+    app.run(debug=False, host='0.0.0.0', port=5050)
     print "create_app"
 
 

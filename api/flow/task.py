@@ -1,14 +1,16 @@
-#coding:utf8
-from flask_restplus import Namespace, Resource
-from flask import request
-import os
-import sys
-from flow_assets.scheduler import get_scheduler
+# coding:utf8
 # import flow_log
 import json
-import paramiko
+import sys
+
+from flask import request
+from flask_restplus import Namespace, Resource
+from flow_assets.scheduler import get_scheduler
+
 task_namespace = Namespace("task", description="Endpoint to retrieve task")
-from flow_assets.logcfg  import logger as flow_log
+from flow_assets.logcfg import logger as flow_log
+
+
 @task_namespace.route('/start')
 class Create(Resource):
     def get(self):
@@ -16,6 +18,7 @@ class Create(Resource):
         flow_log.info("create")
         flow_log.info(id(sc))
         return {"get": "hello world"}
+
     def post(self):
         try:
             sc = get_scheduler()
@@ -29,31 +32,31 @@ class Create(Resource):
             #     "temp_flow": "temp_flow.json",  # 临时文件
             #     "task_type" : "passive"
             # }
-#            if  cfg.get("es_passive_name",None) == None:
-#                return {"success": False, "msg": "es索引名 不能为空"}
-#            if  cfg.get("es_passive_type",None) == None:
-#                return {"success": False, "msg": "es索引类型 不能为空"
-#            if  cfg.get("path",None) == None:
-#                return {"success": False, "msg": "es IP地址 不能为空"}
-            if cfg.get("vlan",None) == None:
+            #            if  cfg.get("es_passive_name",None) == None:
+            #                return {"success": False, "msg": "es索引名 不能为空"}
+            #            if  cfg.get("es_passive_type",None) == None:
+            #                return {"success": False, "msg": "es索引类型 不能为空"
+            #            if  cfg.get("path",None) == None:
+            #                return {"success": False, "msg": "es IP地址 不能为空"}
+            if cfg.get("vlan", None) == None:
                 flow_log.debug("vlan 不能为空")
                 return {"success": False, "msg": "vlan 不能为空"}
             if cfg.get("path", None) == None:
                 flow_log.debug("path 不能为空")
                 return {"success": False, "msg": "path 不能为空"}
             task_type = cfg.get("task_type", None)
-            if task_type  == None:
+            if task_type == None:
                 flow_log.debug("任务类型 错误")
                 return {"success": False, "msg": "任务类型  不能为空"}
             else:
-                if task_type not in ["passive_vlan", "suricata_vlan","passive_pcap", "suricata_pcap"]:
+                if task_type not in ["passive_vlan", "suricata_vlan", "passive_pcap", "suricata_pcap"]:
                     flow_log.debug("任务类型  不能为空")
                     return {"success": False, "msg": "任务类型 错误"}
-                if  task_type == "passive_pcap" or task_type =="suricata_pcap":
+                if task_type == "passive_pcap" or task_type == "suricata_pcap":
                     if cfg.get("path", "") == "":
                         flow_log.debug("pcap路径不能为空")
                         return {"success": False, "msg": "pcap路径不能为空 "}
-                if  task_type == "passive_vlan" or task_type =="suricata_vlan":
+                if task_type == "passive_vlan" or task_type == "suricata_vlan":
                     if cfg.get("vlan", "") == "":
                         flow_log.debug("pcap路径不能为空")
                         return {"success": False, "msg": "vlan路径不能为空"}
@@ -62,10 +65,10 @@ class Create(Resource):
                 task_cfg = task.get("cfg")
                 task_typex = task_cfg.get("task_type")
                 status = task.get("status")
-                if "suricata" in type and "suricata" in task_typex and status in [0,1]:
+                if "suricata" in type and "suricata" in task_typex and status in [0, 1]:
                     flow_log.debug("重复下发任务")
                     return {"success": False, "msg": "重复下发任务"}
-                if "passive" in type and "passive" in task_typex and status in [0,1]:
+                if "passive" in type and "passive" in task_typex and status in [0, 1]:
                     flow_log.debug("重复下发任务")
                     return {"success": False, "msg": "重复下发任务"}
                 # if "passive" in type and "suricata" in task_typex and status in [0,1]:
@@ -76,13 +79,11 @@ class Create(Resource):
                 #     return {"success": False, "msg": "已存在流量分析任务"}
             taskid = sc.createtask(cfg)
             flow_log.debug("成功下发任务")
-            return   {"success": True,"taskid":taskid, "msg": "成功下发任务"}
+            return {"success": True, "taskid": taskid, "msg": "成功下发任务"}
         except Exception as e:
-            print  {"success": False,"msg": str(e)}
+            print  {"success": False, "msg": str(e)}
             flow_log.error(str(e))
-        return {"success": False,"msg":""}
-
-
+        return {"success": False, "msg": ""}
 
 
 # @task_namespace.route('/create')
@@ -137,29 +138,31 @@ class Status(Resource):
             sc = get_scheduler()
             cfg = json.loads(request.data)
             flow_log.info("post status")
-            taskid = cfg.get("taskid",None)
-            if not taskid :
+            taskid = cfg.get("taskid", None)
+            if not taskid:
                 # print '===='
                 for task in sc.tasklist:
-                    if 'suricata' in task.get("cfg").get("task_type") and 'suricata' in cfg.get("task_type") and task.get("status") in [0,1]:
+                    if 'suricata' in task.get("cfg").get("task_type") and 'suricata' in cfg.get(
+                            "task_type") and task.get("status") in [0, 1]:
                         taskid = task.get("taskid")
                         break
-                    if 'passive' in task.get("cfg").get("task_type") and 'passive' in cfg.get("task_type") and task.get("status") in [0,1]:
+                    if 'passive' in task.get("cfg").get("task_type") and 'passive' in cfg.get("task_type") and task.get(
+                            "status") in [0, 1]:
                         taskid = task.get("taskid")
                         break
             # print taskid
             if taskid != None:
                 taskinfo = sc.taskinfo(taskid)
                 if taskinfo != None:
-                    return {"success": taskinfo.get("success",True), "msg": taskinfo.get("msg",""), "taskinfo": taskinfo}
+                    return {"success": taskinfo.get("success", True), "msg": taskinfo.get("msg", ""),
+                            "taskinfo": taskinfo}
                 else:
                     return {"success": False, "msg": "任务不存在"}
         except Exception as e:
             s = sys.exc_info()
             print "Error '%s' happened on line %d" % (s[1], s[2].tb_lineno)
-            return   {"success": False, "msg": str(e)}
-        return {"success": False,"msg":""}
-
+            return {"success": False, "msg": str(e)}
+        return {"success": False, "msg": ""}
 
 
 # @task_namespace.route('/delete')
@@ -194,6 +197,7 @@ class Delete(Resource):
         flow_log.info("del")
         flow_log.info(id(sc))
         return {"get": "hello world"}
+
     def post(self):
         try:
             sc = get_scheduler()
@@ -203,23 +207,25 @@ class Delete(Resource):
             taskid = cfg.get("taskid", None)
             task_type = cfg.get("task_type", None)
             print task_type
-            print taskid,'----->'
-            if not taskid :
+            print taskid, '----->'
+            if not taskid:
                 print '===='
                 for task in sc.tasklist:
                     print task.get("status")
-                    if 'suricata' in task.get("cfg").get("task_type") and 'suricata' in cfg.get("task_type") and task.get("status") in [0,1]:
+                    if 'suricata' in task.get("cfg").get("task_type") and 'suricata' in cfg.get(
+                            "task_type") and task.get("status") in [0, 1]:
                         taskid = task.get("taskid")
-                        print '********',taskid
+                        print '********', taskid
                         break
-                    if 'passive' in task.get("cfg").get("task_type") and 'passive' in cfg.get("task_type") and task.get("status") in [0,1]:
+                    if 'passive' in task.get("cfg").get("task_type") and 'passive' in cfg.get("task_type") and task.get(
+                            "status") in [0, 1]:
                         taskid = task.get("taskid")
                         break
-            if taskid != None :
+            if taskid != None:
                 if sc.deltask(taskid) == True:
                     return {"success": True, "msg": "任务关闭成功"}
                 else:
-                   return {"success": False, "msg": "任务不存在"}
+                    return {"success": False, "msg": "任务不存在"}
             else:
                 return {"success": False, "msg": "taskid 不能为空"}
         except Exception as e:

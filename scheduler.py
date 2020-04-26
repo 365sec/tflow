@@ -1,13 +1,16 @@
-#coding:utf-8
-import Queue
+# coding:utf-8
+import copy
+import logging
 import threading
 import time
 import uuid
-import copy
-from passive import asset
-from ids import instrusion
+
 from flow_assets.logcfg import logger as flow_log
-import logging
+
+from ids import instrusion
+from passive import asset
+
+
 # logger = logging.getLogger('tapp_flow')
 
 class Scheduler(threading.Thread):
@@ -15,36 +18,35 @@ class Scheduler(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         print "Scheduler  init"
-        self.tasklist=[]
+        self.tasklist = []
 
-    def createtask(self,cfg):
+    def createtask(self, cfg):
         taskid = str(uuid.uuid4())
-        task={"taskid":taskid,"cfg":cfg,"status":0}
+        task = {"taskid": taskid, "cfg": cfg, "status": 0}
         self.tasklist.append(task)
         flow_log.info('createtask running ' + str(task))
         return taskid
 
-    def taskinfo(self,taskid):
+    def taskinfo(self, taskid):
         t = None
-        for task in  self.tasklist :
+        for task in self.tasklist:
             if task["taskid"] == taskid:
                 t = copy.deepcopy(task)
         return t
 
-
-    def deltask(self,taskid):
+    def deltask(self, taskid):
         index = -1
-        for  i in  range(len(self.tasklist)):
-            if self.tasklist[i].get("taskid","") == taskid:
+        for i in range(len(self.tasklist)):
+            if self.tasklist[i].get("taskid", "") == taskid:
                 index = i
         print index
-        if index != -1 :
+        if index != -1:
             print 'delete__________'
             print self.tasklist[index]
             if 'passive' in self.tasklist[index].get('cfg').get("task_type"):
                 pa = asset.PassiveAsset(self.tasklist[index])
                 pa.stop()
-            elif  'suricata' in self.tasklist[index].get('cfg').get("task_type"):
+            elif 'suricata' in self.tasklist[index].get('cfg').get("task_type"):
                 su = instrusion.IdsInstrusion(self.tasklist[index])
                 su.stop()
             del self.tasklist[index]
@@ -66,7 +68,7 @@ class Scheduler(threading.Thread):
             for task in self.tasklist:
                 if task["status"] == 0:
                     task["status"] = 1
-                    cfg =task.get("cfg")
+                    cfg = task.get("cfg")
                     if 'passive' in cfg.get("task_type"):
                         pa = asset.PassiveAsset(task)
                         pa.run()
@@ -77,13 +79,16 @@ class Scheduler(threading.Thread):
             time.sleep(6)
 
 
-scheduler=Scheduler()
+scheduler = Scheduler()
 flow_log.info(id(scheduler))
-#print scheduler
+
+
+# print scheduler
 
 def get_scheduler():
     flow_log.info(id(scheduler))
     return scheduler
+
 
 def init_scheduler():
     flow_log.info("init_scheduler  start ...")
